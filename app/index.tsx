@@ -1,10 +1,8 @@
-import { registerRootComponent } from 'expo';
-import App from '../App'; // Mantenha esse caminho se App.tsx estiver na raiz
+import React from 'react';
+import AppNavigator from './navigation/AppNavigator';
 
-// Registra o App como o componente raiz e armazena na constante
-const RootComponent = registerRootComponent(App);
+export default function Index() {
+  return <AppNavigator />;
+}
 
-// Exporta a constante como default
-export default RootComponent;
- 
 

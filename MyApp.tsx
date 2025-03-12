@@ -1,8 +1,8 @@
 import React from "react";
 import { StatusBar } from "expo-status-bar";
-import AppNavigator from "./src/navigation/AppNavigator";
+import AppNavigator from "./app/navigation/AppNavigator";
 
-export default function App() {
+export default function MyApp() {
   return (
     <>
 {/*       <StatusBar style="auto" />  */}
