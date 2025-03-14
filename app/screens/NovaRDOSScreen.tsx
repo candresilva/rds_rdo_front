@@ -9,12 +9,15 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { globalStyles } from "../styles/globalStyles";
 import SalvoOpcoes from "../components/SalvoOpcoes";
+import { ScrollView } from "react-native";
+
 
 type FormData = {
   encarregado: string;
   contrato: string;
   data: Date;
   tipo: string;
+  numero?: number
 };
 
 const schema = Yup.object().shape({
@@ -36,7 +39,7 @@ export default function NovaRDOSScreen() {
       encarregado: "",
       contrato: "",
       data: new Date(),
-      tipo: "RDO",
+      tipo: "RDO"
     },
   });
 
@@ -44,15 +47,87 @@ export default function NovaRDOSScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [tipo, setTipo] = useState("RDO");
   const [salvo, setSalvo] = useState(false);
+  const [status, setStatus] = useState<"Aberto" | "Encerrado" | "Excluído" | "">(""); 
+  const [numeroRDOExibicao, setNumeroRDOExibicao] = useState<number | null>(null);
+
 
   const onSubmit = (data: FormData) => {
+    gerarNumeroSequencial(data.tipo);
     Alert.alert("RDOS Salva!", `Enc: ${data.encarregado} | Tipo: ${data.tipo} | Data: ${data.data.toLocaleDateString()}`);
+    setStatus("Aberto");
     setSalvo(true);
   };
 
+  const onFechar = () => {
+    setStatus("Encerrado");
+  };
+  
+  const onExcluir = () => {
+    setStatus("Excluído");
+  };
+  const onEditar = () => {
+    setSalvo(false);
+  };
+
+  const onClick = () => {
+    setSalvo(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      // Monta o objeto com os dados do formulário
+      //const dadosParaSalvar = {
+        //numeroRDO: FormData.numeroRDO,
+        //dataCriacao: selectedDate,
+        //status: "Aberto",
+        // Adicione mais campos conforme necessário
+      //};
+  
+      // Enviar os dados para o banco (substitua pela sua API real)
+      //const response = await fetch("URL_DA_API/salvar", {
+        //method: "POST",
+        //headers: {
+          //"Content-Type": "application/json",
+        //},
+        //body: JSON.stringify(dadosParaSalvar),
+      //});
+  
+      //if (!response.ok) throw new Error("Erro ao salvar no banco");
+  
+      // Se deu certo, atualizar o estado para indicar que foi salvo
+      //setSalvo(true);
+      //alert("Salvo com sucesso!");
+  
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar os dados");
+    }
+  };
+  
+  const gerarNumeroSequencial = async (tipo: string) => {
+    try {
+      // Simulação de obtenção do número do RDO do banco de dados
+      const novoNumero = Math.floor(Math.random() * 1000) + 1; // Mock
+      setNumeroRDOExibicao(novoNumero);
+      return novoNumero;
+    } catch (error) {
+      console.error("Erro ao gerar número sequencial:", error);
+      return null;
+    }
+  };
+
   return (
+   <ScrollView style={{ flex: 1 }}>
     <View style={globalStyles.container}>
       <Text style={globalStyles.title}>Nova RDOS</Text>
+    
+      {salvo  && (
+      <View style={{ padding: 10, borderBottomWidth: 1, marginBottom: 10 }}>
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>RDO/RDS: {numeroRDOExibicao}</Text>
+        <Text>Data de criação: {selectedDate.toLocaleDateString()}</Text>
+        <Text>Status: {status}</Text>
+      </View>
+    )}
 
       <Text>Encarregado:</Text>
       <Controller
@@ -152,13 +227,47 @@ export default function NovaRDOSScreen() {
         <Text>RDS</Text>
       </View>
 
-      <TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} onPress={handleSubmit(onSubmit)} disabled={salvo}>
-        <Text style={globalStyles.buttonText}>Criar RDOS</Text> 
-      </TouchableOpacity>
+      {status === "" && (<TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} onPress={handleSubmit(onSubmit)} disabled={salvo}>
+        <Text style={globalStyles.buttonText}>Criar</Text> 
+      </TouchableOpacity>)}
 
-      {salvo && 
+
+      
+
+      {status !== "" && 
         <SalvoOpcoes />
       }
+
+{salvo && (
+      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
+        <TouchableOpacity
+          style={[globalStyles.button, { backgroundColor: "green" }]}
+          onPress={onFechar}
+        >
+          <Text style={globalStyles.buttonText}>Fechar</Text>
+        </TouchableOpacity>
+              <TouchableOpacity style={[globalStyles.button, { backgroundColor: "orange" }]} onPress={onEditar}>
+                <Text style={globalStyles.buttonText}>Editar</Text>
+              </TouchableOpacity>
+        <TouchableOpacity
+          style={[globalStyles.button, { backgroundColor: "red" }]}
+          onPress={onExcluir}
+        >
+          <Text style={globalStyles.buttonText}>Excluir</Text>
+        </TouchableOpacity>
+      </View>
+)}
+      {status ==="Aberto" && !salvo && (
+      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
+              <TouchableOpacity
+                style={[globalStyles.button, { backgroundColor: "green" }]}
+                onPress={handleSave}
+              >
+                <Text style={globalStyles.buttonText}>Salvar</Text>
+              </TouchableOpacity>
+      </View>)}
+
     </View>
+    </ScrollView>
   );
 }
