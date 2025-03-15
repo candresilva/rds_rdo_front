@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ScrollView,
 
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
@@ -14,9 +15,10 @@ import { globalStyles } from "../styles/globalStyles";
 
 interface ServiceActivityModalProps {
   visible: boolean;
-  initialServices: { service: string; activities: string[] }[];
+  initialServices: { service: string; activities: { name: string; startTime?: string; endTime?: string }[] }[]
   onClose: () => void;
-  onSave: (selectedServices: { service: string; activities: string[] }[]) => void;
+  onSave: (selectedServices: { service: string; activities: { name: string; startTime?: string; endTime?: string }[] }[]) => void;
+
 }
 
 const allServices = ["Servico A", "Servico B", "Servico C", "Servico D", "Servico E"];
@@ -36,7 +38,7 @@ const ServiceActivityModal: React.FC<ServiceActivityModalProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedServices, setSelectedServices] = useState<
-    { service: string; activities: string[] }[]
+  { service: string; activities: { name: string; startTime?: string; endTime?: string }[] }[]
   >([]);
   useEffect(() => {
     if (visible) {setSelectedServices(initialServices);
@@ -52,11 +54,47 @@ const ServiceActivityModal: React.FC<ServiceActivityModalProps> = ({
 
   const addService = (service: string) => {
     if (!selectedServices.some((s) => s.service === service)) {
+      const newService = {
+        service,
+        activities: allActivities[service]?.map(activity => ({
+          name: activity,
+          startTime: undefined,
+          endTime: undefined,
+        })) || [],
+      };
       setSelectedServices([
         ...selectedServices,
-        { service, activities: allActivities[service] || [] },
-      ]);
+        newService]);
     }
+  };
+  const updateStartTime = (service: string, activityName: string, startTime: string) => {
+    setSelectedServices((prev) =>
+      prev.map((s) =>
+        s.service === service
+          ? {
+              ...s,
+              activities: s.activities.map((a) =>
+                a.name === activityName ? { ...a, startTime } : a
+              ),
+            }
+          : s
+      )
+    );
+  };
+
+  const updateEndTime = (service: string, activityName: string, endTime: string) => {
+    setSelectedServices((prev) =>
+      prev.map((s) =>
+        s.service === service
+          ? {
+              ...s,
+              activities: s.activities.map((a) =>
+                a.name === activityName ? { ...a, endTime } : a
+              ),
+            }
+          : s
+      )
+    );
   };
 
   // Remover serviço da lista selecionada
@@ -68,10 +106,12 @@ const ServiceActivityModal: React.FC<ServiceActivityModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          <Text style={globalStyles.modalTitle}>Inserir Serviços e Atividades</Text>
-
+          {initialServices.length ==0 ? (<Text style={globalStyles.modalTitle}>Inserir Serviços e Atividades</Text>)
+          : (<Text style={globalStyles.modalTitle}>Editar Serviços e Atividades</Text>)}
           {/* Campo de busca */}
           <TextInput
             style={globalStyles.input}
@@ -95,24 +135,52 @@ const ServiceActivityModal: React.FC<ServiceActivityModalProps> = ({
           />
 
           {/* Serviços Selecionados */}
-          <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedServices.map(({ service, activities }) => (
-            <View key={service} style={globalStyles.selectedItem}>
-              <Text>{service}</Text>
-                  <TouchableOpacity onPress={() => removeService(service)}>
-                    <Text style={globalStyles.removeText}>❌</Text>
-                  </TouchableOpacity>
-                  {activities.length > 0 && (
-                    <View style={globalStyles.activityList}>
-                      {activities.map((activity: string, i: number) => (
-                        <Text key={i} style={globalStyles.activityText}>
-                          - {activity}
-                        </Text>
-                      ))}
+            <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
+          
+            {selectedServices.map(({ service, activities }, j: number) => (
+
+            <View key={service} style={globalStyles.serviceContainer}>
+              {/* Nome do Serviço */}
+              <View style={globalStyles.serviceHeader}>
+                <Text style={globalStyles.serviceText}>{j + 1}. {service}</Text>
+                <TouchableOpacity onPress={() => removeService(service)}>
+                  <Text style={globalStyles.removeText}>❌</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Lista de Atividades */}
+              {activities.length > 0 && (
+                <View style={globalStyles.activityList}>
+                  {activities.map((activity, i: number) => (
+                    <View key={i} style={globalStyles.activityItem}>
+                      {/* Nome da Atividade */}
+                      <Text style={globalStyles.activityText}>{i + 1}. {activity.name}</Text>
+
+                      {/* Campos de Hora */}
+                      <View style={globalStyles.timeContainer}>
+                        <TextInput
+                          style={globalStyles.input}
+                          placeholder="Início"
+                          keyboardType="default"
+                          value={activity.startTime}
+                          onChangeText={(text) => updateStartTime(service, activity.name, text)}
+                        />
+                        <TextInput
+                          style={globalStyles.input}
+                          placeholder="Término"
+                          keyboardType="default"
+                          value={activity.endTime}
+                          onChangeText={(text) => updateEndTime(service, activity.name, text)}
+                        />
+                      </View>
                     </View>
-                  )}
+                  ))}
+                </View>
+                )}
+
             </View>
-          ))}
+            ))}
+         
 
           {/* Botões de ação */}
           <View style={globalStyles.buttonContainer}>
@@ -131,6 +199,7 @@ const ServiceActivityModal: React.FC<ServiceActivityModalProps> = ({
           </View>
         </View>
       </View>
+    </ScrollView>
     </Modal>
   );
 };

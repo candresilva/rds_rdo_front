@@ -11,9 +11,10 @@ import { globalStyles } from "../styles/globalStyles";
 
 interface WorkforceModalProps {
   visible: boolean;
-  initialWorkforces: string[]; // A lista de mão de obra inicial
+  initialWorkforces: {type: string; quantity?: number}[] 
+
   onClose: () => void;
-  onSave: (selectedWorkforces: string[]) => void;
+  onSave: (selectedWorkforces: { type: string; quantity?: number }[])=> void;
 }
 
 const allWorkforces = [
@@ -31,8 +32,9 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
   onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedWorkforces, setSelectedWorkforces] = useState<string[]>([]);
-
+  const [selectedWorkforces, setSelectedWorkforces] = useState<
+    { type: string; quantity?: number }[]
+  >([]);
   useEffect(() => {
     if (visible) {
       setSelectedWorkforces(initialWorkforces);
@@ -46,15 +48,24 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
 
   // Adicionar mão de obra à lista selecionada
   const addWorkforce = (workforce: string) => {
-    if (!selectedWorkforces.includes(workforce)) {
-      setSelectedWorkforces([...selectedWorkforces, workforce]);
+    if (!selectedWorkforces.some((w) => w.type === workforce)) {
+      setSelectedWorkforces([
+        ...selectedWorkforces,
+        { type: workforce, quantity: 1 },
+      ]);
     }
+  };
+
+  const updateQuantity = (workforce: string, quantity: number) => {
+    setSelectedWorkforces((prev) =>
+      prev.map((w) => (w.type === workforce ? { ...w, quantity } : w))
+    );
   };
 
   // Remover mão de obra da lista selecionada
   const removeWorkforce = (workforce: string) => {
     setSelectedWorkforces(
-      selectedWorkforces.filter((item) => item !== workforce)
+      selectedWorkforces.filter((item) => item.type !== workforce)
     );
   };
 
@@ -62,7 +73,9 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          <Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>
+          {initialWorkforces.length ==0 ? 
+          (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
+          (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
 
           {/* Campo de busca */}
           <TextInput
@@ -88,10 +101,18 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
 
           {/* Mão de obra Selecionada */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedWorkforces.map((workforce) => (
-            <View key={workforce} style={globalStyles.selectedItem}>
-              <Text>{workforce}</Text>
-              <TouchableOpacity onPress={() => removeWorkforce(workforce)}>
+          {selectedWorkforces.map(({type,quantity}) => (
+            <View key={type} style={globalStyles.selectedItem}>
+              <Text>{type}</Text>
+              {/* Input para atualizar quantidade */}
+              <TextInput
+                style={globalStyles.input}
+                keyboardType="numeric"
+                value={quantity?.toString()}
+                onChangeText={(text) => updateQuantity(type, parseInt(text) || 0)}
+              />
+
+              <TouchableOpacity onPress={() => removeWorkforce(type)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>
             </View>

@@ -11,9 +11,9 @@ import { globalStyles } from "../styles/globalStyles";
 
 interface BreakModalProps {
   visible: boolean;
-  initialBreaks: string[]; // A lista de mão de obra inicial
+  initialBreaks: {name: string; startTime?: string; endTime?: string }[] ;
   onClose: () => void;
-  onSave: (selectedBreaks: string[]) => void;
+  onSave: (selectedBreaks: {name: string; startTime?: string; endTime?: string }[]) => void;
 }
 
 const allBreaks = [
@@ -31,7 +31,7 @@ const BreakModal: React.FC<BreakModalProps> = ({
   onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedBreaks, setSelectedBreaks] = useState<string[]>([]);
+  const [selectedBreaks, setSelectedBreaks] = useState<{name: string; startTime?: string; endTime?: string }[]>([]);
 
   useEffect(() => {
     if (visible) {
@@ -45,16 +45,28 @@ const BreakModal: React.FC<BreakModalProps> = ({
   );
 
   // Adicionar mão de obra à lista selecionada
-  const addBreak = (Break: string) => {
-    if (!selectedBreaks.includes(Break)) {
-      setSelectedBreaks([...selectedBreaks, Break]);
+  const addBreak = (abreak: string) => {
+    if (!selectedBreaks.some((b) => b.name === abreak)) {
+      setSelectedBreaks([...selectedBreaks, 
+        {name: abreak},]);
     }
+  };
+  const updateStartTime = (abreak: string, startTime:string) => {
+    setSelectedBreaks((prev) =>
+      prev.map((b) => (b.name === abreak ? { ...b, startTime } : b))
+    );
+  };
+
+  const updateEndTime = (abreak: string, endTime:string) => {
+    setSelectedBreaks((prev) =>
+      prev.map((b) => (b.name === abreak ? { ...b, endTime } : b))
+    );
   };
 
   // Remover mão de obra da lista selecionada
-  const removeBreak = (Break: string) => {
+  const removeBreak = (abreak: string) => {
     setSelectedBreaks(
-      selectedBreaks.filter((item) => item !== Break)
+      selectedBreaks.filter((item) => item.name !== abreak)
     );
   };
 
@@ -62,17 +74,19 @@ const BreakModal: React.FC<BreakModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          <Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>
+          {initialBreaks.length ==0 ? 
+                    (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
+                    (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
 
           {/* Campo de busca */}
           <TextInput
             style={globalStyles.input}
-            placeholder="Buscar função..."
+            placeholder="Buscar pausa..."
             value={searchTerm}
             onChangeText={setSearchTerm}
           />
 
-          {/* Lista de funções de mão de obra filtradas */}
+          {/* Lista de pausas filtradas */}
           <FlatList
             data={filteredBreaks}
             keyExtractor={(item) => item}
@@ -86,12 +100,27 @@ const BreakModal: React.FC<BreakModalProps> = ({
             )}
           />
 
-          {/* Mão de obra Selecionada */}
+          {/* Pausa Selecionada */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedBreaks.map((Break) => (
-            <View key={Break} style={globalStyles.selectedItem}>
-              <Text>{Break}</Text>
-              <TouchableOpacity onPress={() => removeBreak(Break)}>
+          {selectedBreaks.map(({name, startTime, endTime}) => (
+            <View key={name} style={globalStyles.selectedItem}>
+              <Text>{name}</Text>
+              {/* Input para atualizar hora de início */}
+              <TextInput
+                style={globalStyles.input}
+                keyboardType="default"
+                value={startTime?.toString()}
+                onChangeText={(text) => updateStartTime(name, text || "0")}
+              />
+              {/* Input para atualizar hora de fim */}
+              <TextInput
+                style={globalStyles.input}
+                keyboardType="default"
+                value={endTime?.toString()}
+                onChangeText={(text) => updateEndTime(name, text || "")}
+              />
+
+              <TouchableOpacity onPress={() => removeBreak(name)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>
             </View>

@@ -104,4 +104,38 @@ export const globalStyles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
   },
+  editButton: {
+    width: 30,
+    height: 30,
+    backgroundColor: "#007bff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+  },
+  editButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  activityItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  serviceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  timeContainer: {
+    marginTop: 5,  // Move os campos de hora para baixo
+    flexDirection: "column",
+    gap: 5,        // Dá espaço entre os inputs
+  },
 });

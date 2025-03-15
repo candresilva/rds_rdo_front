@@ -53,7 +53,7 @@ export default function NovaRDOSScreen() {
 
   const onSubmit = (data: FormData) => {
     gerarNumeroSequencial(data.tipo);
-    Alert.alert("RDOS Salva!", `Enc: ${data.encarregado} | Tipo: ${data.tipo} | Data: ${data.data.toLocaleDateString()}`);
+    Alert.alert(tipo=="RDS"? "RDS Salva!":"RDO Salvo!", `Enc: ${data.encarregado} | Tipo: ${tipo} | Data: ${data.data.toLocaleDateString()}`);
     setStatus("Aberto");
     setSalvo(true);
   };
@@ -69,9 +69,6 @@ export default function NovaRDOSScreen() {
     setSalvo(false);
   };
 
-  const onClick = () => {
-    setSalvo(true);
-  };
 
   const handleSave = async () => {
     try {
@@ -119,17 +116,16 @@ export default function NovaRDOSScreen() {
   return (
    <ScrollView style={{ flex: 1 }}>
     <View style={globalStyles.container}>
-      <Text style={globalStyles.title}>Nova RDOS</Text>
     
-      {salvo  && (
+      {salvo? (
       <View style={{ padding: 10, borderBottomWidth: 1, marginBottom: 10 }}>
-        <Text style={{ fontWeight: "bold", fontSize: 18 }}>RDO/RDS: {numeroRDOExibicao}</Text>
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>{tipo}: {numeroRDOExibicao}</Text>
         <Text>Data de criação: {selectedDate.toLocaleDateString()}</Text>
         <Text>Status: {status}</Text>
       </View>
-    )}
+    ):(<Text style={globalStyles.title}>Nova RDOS</Text>)}
 
-      <Text>Encarregado:</Text>
+      <Text style={{paddingVertical:10, fontWeight:"bold"}}>Encarregado:</Text>
       <Controller
         control={control}
         name="encarregado"
@@ -144,7 +140,7 @@ export default function NovaRDOSScreen() {
       />
       {errors.encarregado && <Text style={{ color: "red" }}>{errors.encarregado.message}</Text>}
 
-      <Text>Contrato:</Text>
+      <Text style={{paddingVertical:10, fontWeight:"bold"}}>Contrato:</Text>
       <Controller
         control={control}
         name="contrato"
@@ -159,7 +155,7 @@ export default function NovaRDOSScreen() {
       />
       {errors.contrato && <Text style={{ color: "red" }}>{errors.contrato.message}</Text>}
 
-      <Text>Data:</Text>
+      <Text style={{paddingVertical:10, fontWeight:"bold"}}>Data:</Text>
           {Platform.OS === "web" && !salvo ? (
             <TextInput
               style={{ borderWidth: 1, padding: 8 }}
@@ -194,8 +190,8 @@ export default function NovaRDOSScreen() {
         )}
       {errors.data && <Text style={{ color: "red" }}>{errors.data.message}</Text>}
       
-      <Text>Tipo:</Text>
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <Text style={{paddingVertical:12, fontWeight:"bold"}} >Tipo:</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", padding:10 }}>
         <TouchableOpacity onPress={() => setTipo("RDO")} disabled={salvo}>
           <View
             style={{
@@ -209,8 +205,8 @@ export default function NovaRDOSScreen() {
             }}
           />
         </TouchableOpacity>
-
         <Text>RDO</Text>
+
         <TouchableOpacity onPress={() => setTipo("RDS")} style={{ marginLeft: 20 }} disabled={salvo}>
           <View
             style={{
@@ -238,7 +234,7 @@ export default function NovaRDOSScreen() {
         <SalvoOpcoes />
       }
 
-{salvo && (
+      {salvo && (
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
         <TouchableOpacity
           style={[globalStyles.button, { backgroundColor: "green" }]}
