@@ -114,7 +114,7 @@ export default function NovaRDOSScreen() {
   };
 
   return (
-   <ScrollView style={{ flex: 1 }}>
+   <ScrollView style={{ flex: 1 }} nestedScrollEnabled={true}>
     <View style={globalStyles.container}>
     
       {salvo? (

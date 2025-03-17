@@ -8,6 +8,7 @@ import {
   FlatList,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
+import DropDownPicker from "react-native-dropdown-picker";
 
 interface EquipmentModalProps {
   visible: boolean;
@@ -38,6 +39,9 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
       setSelectedEquipments(initialEquipments);
     }
   }, [visible, initialEquipments]);
+    const [tempSelectedEquipment, setTempSelectedEquipment] = useState<string>(''); // Serviço selecionado temporariamente
+    const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+    
 
   // Filtrar equipamentos pelo termo de busca
   const filteredEquipments = allEquipments.filter((Equipment) =>
@@ -51,6 +55,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
         ...selectedEquipments,
         { type: equipment, quantity: 1 },
       ]);
+      setTempSelectedEquipment("")
     }
   };
 
@@ -75,27 +80,38 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
           (<Text style={globalStyles.modalTitle}>Inserir Equipamentos</Text>):
           (<Text style={globalStyles.modalTitle}>Editar Equipamentos</Text>)}
 
-          {/* Campo de busca */}
-          <TextInput
-            style={globalStyles.input}
-            placeholder="Buscar equipamento..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-
           {/* Lista de equipamentos filtrados */}
-          <FlatList
-            data={filteredEquipments}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={globalStyles.listItem}
-                onPress={() => addEquipment(item)}
-              >
-                <Text>{item}</Text>
+          <View style={{flexDirection:"column"}}>
+              <DropDownPicker
+                open={open}
+                value={tempSelectedEquipment}
+                items={filteredEquipments.map(equipment => ({ label: equipment, value: equipment }))}
+                setOpen={setOpen}
+                setValue={setTempSelectedEquipment}
+                placeholder="Selecione um equipamento"
+                searchable={true}
+                searchPlaceholder="Pesquisar..."
+                containerStyle={globalStyles.dropdownContainer}
+                style={globalStyles.dropdown}
+                dropDownContainerStyle={globalStyles.dropdownList}
+                maxHeight={150}  // Define a altura máxima para o dropdown
+                scrollViewProps={{
+                    nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
+                }}
+              />
+              <TouchableOpacity 
+                disabled={tempSelectedEquipment===null}
+                style={globalStyles.editButton}               
+                onPress={() => {
+                    if (tempSelectedEquipment) {
+                    addEquipment(tempSelectedEquipment); // Adiciona o serviço selecionado à lista final
+                    }
+                }}
+                >
+                <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
               </TouchableOpacity>
-            )}
-          />
+          </View>
+
 
           {/* Equipamentos Selecionados */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
@@ -124,7 +140,10 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={globalStyles.buttonCancel}
-              onPress={onClose}
+              onPress={() => {
+                onClose(); // Chama o onClose
+                setTempSelectedEquipment(""); // Limpa o valor de tempSelectedService
+              }}
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
             </TouchableOpacity>

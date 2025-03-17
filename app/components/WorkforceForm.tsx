@@ -8,11 +8,11 @@ import {
   FlatList,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
+import DropDownPicker from "react-native-dropdown-picker";
 
 interface WorkforceModalProps {
   visible: boolean;
-  initialWorkforces: {type: string; quantity?: number}[] 
-
+  initialWorkforces: {type: string; quantity?: number}[]
   onClose: () => void;
   onSave: (selectedWorkforces: { type: string; quantity?: number }[])=> void;
 }
@@ -40,6 +40,9 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
       setSelectedWorkforces(initialWorkforces);
     }
   }, [visible, initialWorkforces]);
+  const [tempSelectedWorforce, setTempSelectedWorkforce] = useState<string>(''); // Serviço selecionado temporariamente
+  const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+  
 
   // Filtrar funções de mão de obra pelo termo de busca
   const filteredWorkforces = allWorkforces.filter((workforce) =>
@@ -53,6 +56,7 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
         ...selectedWorkforces,
         { type: workforce, quantity: 1 },
       ]);
+      setTempSelectedWorkforce("")
     }
   };
 
@@ -77,27 +81,38 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
           (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
           (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
 
-          {/* Campo de busca */}
-          <TextInput
-            style={globalStyles.input}
-            placeholder="Buscar função..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-
           {/* Lista de funções de mão de obra filtradas */}
-          <FlatList
-            data={filteredWorkforces}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={globalStyles.listItem}
-                onPress={() => addWorkforce(item)}
-              >
-                <Text>{item}</Text>
+          <View style={{flexDirection:"column"}}>
+              <DropDownPicker
+                open={open}
+                value={tempSelectedWorforce}
+                items={filteredWorkforces.map(workforce => ({ label: workforce, value: workforce }))}
+                setOpen={setOpen}
+                setValue={setTempSelectedWorkforce}
+                placeholder="Selecione uma mão de obra"
+                searchable={true}
+                searchPlaceholder="Pesquisar..."
+                containerStyle={globalStyles.dropdownContainer}
+                style={globalStyles.dropdown}
+                dropDownContainerStyle={globalStyles.dropdownList}
+                maxHeight={150}  // Define a altura máxima para o dropdown
+                scrollViewProps={{
+                    nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
+                }}
+              />
+              <TouchableOpacity 
+                disabled={tempSelectedWorforce===null}
+                style={globalStyles.editButton}               
+                onPress={() => {
+                    if (tempSelectedWorforce) {
+                    addWorkforce(tempSelectedWorforce); // Adiciona o serviço selecionado à lista final
+                    }
+                }}
+                >
+                <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
               </TouchableOpacity>
-            )}
-          />
+          </View>
+
 
           {/* Mão de obra Selecionada */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
@@ -128,7 +143,11 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={globalStyles.buttonCancel}
-              onPress={onClose}
+              onPress={() => {
+                onClose(); // Chama o onClose
+                setTempSelectedWorkforce(""); // Limpa o valor de tempSelectedService
+              }}
+              
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
             </TouchableOpacity>

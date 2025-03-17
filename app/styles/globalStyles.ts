@@ -118,9 +118,9 @@ export const globalStyles = StyleSheet.create({
     fontWeight: "bold",
   },
   activityItem: {
-    flexDirection: "row",
+    flexDirection: "column",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems:"baseline",
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: "#e0e0e0",
@@ -137,5 +137,61 @@ export const globalStyles = StyleSheet.create({
     marginTop: 5,  // Move os campos de hora para baixo
     flexDirection: "column",
     gap: 5,        // Dá espaço entre os inputs
+  },
+  timePair: {
+    flexDirection: "row", // Mantém o Text + Input alinhados na horizontal
+    alignItems: "center",
+    gap: 8,
+    marginBottom:5 // Espaçamento entre o texto e o input
+  },
+  
+  label: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  addActivityButton: {
+    width: 30,
+    height: 30,
+    backgroundColor: "#007bff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+    marginLeft: 10,
+  },
+  addActivityButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  addActivityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  dropdownContainer: {
+    marginBottom: 20,
+  //  zIndex: 1,  // Para garantir que o dropdown não se sobreponha a outros elementos
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: 'gray',
+    height: 40,
+  },
+  dropDownStyle: {
+    backgroundColor: '#fafafa',
+  },
+  dropdownList: {
+    width: '100%',  // Faz com que o dropdown ocupe a largura do container
+    maxHeight: 280,  // Limita a altura do dropdown, ativando a rolagem
+    backgroundColor: '#fff',
+  },
+  plusIcon: {
+    fontSize: 12, // Ícone menor
+    fontWeight: "bold",
+    color: 'green', // Cor verde
+    borderWidth: 1, // Borda do ícone
+    borderColor: 'green', // Cor da borda
+    padding: 5, // Espaço ao redor do ícone
+    borderRadius: 10, // Bordas arredondadas
   },
 });

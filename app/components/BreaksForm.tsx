@@ -5,9 +5,10 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
+import DropDownPicker from "react-native-dropdown-picker";
+
 
 interface BreakModalProps {
   visible: boolean;
@@ -38,6 +39,9 @@ const BreakModal: React.FC<BreakModalProps> = ({
       setSelectedBreaks(initialBreaks);
     }
   }, [visible, initialBreaks]);
+  const [tempSelectedBreak, setTempSelectedBreak] = useState<string>(''); // Serviço selecionado temporariamente
+  const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+  
 
   // Filtrar funções de mão de obra pelo termo de busca
   const filteredBreaks = allBreaks.filter((Break) =>
@@ -49,8 +53,10 @@ const BreakModal: React.FC<BreakModalProps> = ({
     if (!selectedBreaks.some((b) => b.name === abreak)) {
       setSelectedBreaks([...selectedBreaks, 
         {name: abreak},]);
+        setTempSelectedBreak("");
     }
   };
+  
   const updateStartTime = (abreak: string, startTime:string) => {
     setSelectedBreaks((prev) =>
       prev.map((b) => (b.name === abreak ? { ...b, startTime } : b))
@@ -78,27 +84,37 @@ const BreakModal: React.FC<BreakModalProps> = ({
                     (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
                     (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
 
-          {/* Campo de busca */}
-          <TextInput
-            style={globalStyles.input}
-            placeholder="Buscar pausa..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-
           {/* Lista de pausas filtradas */}
-          <FlatList
-            data={filteredBreaks}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={globalStyles.listItem}
-                onPress={() => addBreak(item)}
-              >
-                <Text>{item}</Text>
+          <View style={{flexDirection:"column"}}>
+                  <DropDownPicker
+                  open={open}
+                  value={tempSelectedBreak}
+                  items={filteredBreaks.map(abreak => ({ label: abreak, value: abreak }))}
+                  setOpen={setOpen}
+                  setValue={setTempSelectedBreak}
+                  placeholder="Selecione uma pausa"
+                  searchable={true}
+                  searchPlaceholder="Pesquisar..."
+                  containerStyle={globalStyles.dropdownContainer}
+                  style={globalStyles.dropdown}
+                  dropDownContainerStyle={globalStyles.dropdownList}
+                  maxHeight={150}  // Define a altura máxima para o dropdown
+                  scrollViewProps={{
+                      nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
+                  }}
+              />
+              <TouchableOpacity 
+                  disabled={tempSelectedBreak===null}
+                  style={globalStyles.editButton}               
+                  onPress={() => {
+                      if (tempSelectedBreak) {
+                      addBreak(tempSelectedBreak); // Adiciona o serviço selecionado à lista final
+                      }
+                  }}
+                  >
+                  <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
               </TouchableOpacity>
-            )}
-          />
+              </View>
 
           {/* Pausa Selecionada */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
@@ -136,7 +152,11 @@ const BreakModal: React.FC<BreakModalProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={globalStyles.buttonCancel}
-              onPress={onClose}
+              onPress={() => {
+                onClose(); // Chama o onClose
+                setTempSelectedBreak(""); // Limpa o valor de tempSelectedService
+              }}
+              
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
             </TouchableOpacity>
