@@ -1,28 +1,42 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Alert, Platform, TextInput } from "react-native";
-import { StackNavigationProp } from "@react-navigation/stack";
 import { useForm, Controller } from "react-hook-form";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { RootStackParamList } from "../navigation/AppNavigator";
 import { globalStyles } from "../styles/globalStyles";
 import SalvoOpcoes from "../components/SalvoOpcoes";
 import { ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const STORAGE_KEY = "@rdo_rds_list";
+const API_URL = "http://192.168.0.29:3000";
+//const API_URL = "http://10.0.2.2:3000";
+//const API_URL = "http://localhost:3000";
 
 type FormData = {
-  encarregado: string;
-  contrato: string;
+  encarregadoId: string;
+  empresaContratoId: string;
   data: Date;
   tipo: string;
-  numero?: number
+  numero?: string;
+  status?:string;
+};
+
+type Encarregado = {
+  id: string;
+  nome: string;
+};
+
+type Contrato = {
+  id: string;
+  numeroDoContrato: string;
 };
 
 const schema = Yup.object().shape({
-  encarregado: Yup.string().required("Selecione um encarregado"),
-  contrato: Yup.string().required("Selecione um contrato"),
+  encarregadoId: Yup.string().required("Selecione um encarregado"),
+  empresaContratoId: Yup.string().required("Selecione um contrato"),
   data: Yup.date().required("Escolha uma data"),
   tipo: Yup.string().required("Escolha entre RDO ou RDS"),
 });
@@ -35,26 +49,54 @@ export default function NovaRDOSScreen() {
     setValue,
   } = useForm<FormData>({
     resolver: yupResolver(schema),
-    defaultValues: {
-      encarregado: "",
-      contrato: "",
+    defaultValues: {       
+      encarregadoId: "",
+      empresaContratoId: "",
       data: new Date(),
-      tipo: "RDO"
+      tipo: "RDO",
+      status:"Aberto",
     },
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [tipo, setTipo] = useState("RDO");
+  const [tipo, setTipo] = useState<"RDO" | "RDS">("RDO");
   const [salvo, setSalvo] = useState(false);
   const [status, setStatus] = useState<"Aberto" | "Encerrado" | "Excluído" | "">(""); 
-  const [numeroRDOExibicao, setNumeroRDOExibicao] = useState<number | null>(null);
+  const [encarregados, setEncarregados] = useState<Encarregado[]>([]);
+  const [contratos, setContratos] = useState<Contrato[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [numeroGerado, setNumeroGerado] = useState<string | null>(null);
+  
+  useEffect(() => {
+    carregarDados();
+  }, []);
 
 
-  const onSubmit = (data: FormData) => {
-    gerarNumeroSequencial(data.tipo);
-    Alert.alert(tipo=="RDS"? "RDS Salva!":"RDO Salvo!", `Enc: ${data.encarregado} | Tipo: ${tipo} | Data: ${data.data.toLocaleDateString()}`);
-    setStatus("Aberto");
+  const onSubmit = async (data: FormData) => {
+    const updatedData = { ...data, status:"Aberto", tipo };
+    console.log("Dados", updatedData);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/criar/rdos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      });
+  
+      if (!response.ok) throw new Error("Erro ao salvar no servidor");
+  
+      const result = await response.json();
+  //    const numeroGerado = result.numero; // Número gerado no backend
+      setNumeroGerado(result.numero)
+      Alert.alert("Sucesso!", `RDO/RDS salvo com número ${result.numero}`);
+    } catch (error) {
+      console.warn("Sem internet. Gerando número provisório...");
+      
+      const numeroProvisorio = gerarNumeroProvisorio(data.tipo);
+      const dataComNumeroProvisorio = { ...data, numero: numeroProvisorio, status: "Pendente" };
+  
+      await salvarOffline(dataComNumeroProvisorio);
+     }
     setSalvo(true);
   };
 
@@ -68,7 +110,6 @@ export default function NovaRDOSScreen() {
   const onEditar = () => {
     setSalvo(false);
   };
-
 
   const handleSave = async () => {
     try {
@@ -100,18 +141,73 @@ export default function NovaRDOSScreen() {
       alert("Erro ao salvar os dados");
     }
   };
-  
-  const gerarNumeroSequencial = async (tipo: string) => {
+
+  const gerarNumeroProvisorio = (tipo: string) => {
+    const ano = new Date().getFullYear();
+    const randomId = Math.floor(Math.random() * 10000); // Número aleatório provisório
+    return `${randomId}/${ano}`;
+  };
+
+  const salvarOffline = async (data: FormData) => {
     try {
-      // Simulação de obtenção do número do RDO do banco de dados
-      const novoNumero = Math.floor(Math.random() * 1000) + 1; // Mock
-      setNumeroRDOExibicao(novoNumero);
-      return novoNumero;
+      const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
+      const listaAtualizada = listaSalva ? JSON.parse(listaSalva) : [];
+  
+      listaAtualizada.push(data);
+  
+      await AsyncStorage.setItem("@rdo_rds_pendentes", JSON.stringify(listaAtualizada));
+      Alert.alert("Offline", `Salvo como ${data.numero} e será sincronizado depois.`);
     } catch (error) {
-      console.error("Erro ao gerar número sequencial:", error);
-      return null;
+      console.error("Erro ao salvar localmente:", error);
     }
   };
+
+  const carregarDados = async () => {
+    console.log(`${API_URL}/api/v1/listar/encarregados`);
+    console.log(`${API_URL}/api/v1/listar/contratos`);
+    console.log(`${API_URL}/api/v1/listar/maos-de-obra`);
+    try {
+      const [resEnc, resCont] = await Promise.all([
+        fetch(`${API_URL}/api/v1/listar/encarregados`),
+        fetch(`${API_URL}/api/v1/listar/contratos`),
+      ]);
+      console.log("resEnc",resEnc);
+  
+      if (!resEnc.ok || !resCont.ok) {
+        throw new Error("Falha ao obter dados do servidor");
+      }
+  
+      const [encarregados, contratos] = await Promise.all([
+        resEnc.json(),
+        resCont.json(),
+      ]);
+  
+      setEncarregados(encarregados);
+      setContratos(contratos);
+      console.log("segue", contratos);
+  
+      // Salva no AsyncStorage para uso offline
+      await AsyncStorage.setItem("encarregados", JSON.stringify(encarregados));
+      await AsyncStorage.setItem("contratos", JSON.stringify(contratos));
+    } catch (error) {
+      console.log("Erro ao carregar dados, tentando offline", error);
+  
+      // Se falhar, tenta carregar do AsyncStorage
+      const encLocal = await AsyncStorage.getItem("encarregados");
+      const contLocal = await AsyncStorage.getItem("contratos");
+  
+      if (encLocal && contLocal) {
+        setEncarregados(JSON.parse(encLocal));
+        setContratos(JSON.parse(contLocal));
+        Alert.alert("Modo offline", "Os dados podem estar desatualizados.");
+      } else {
+        Alert.alert("Erro", "Não foi possível carregar os dados.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
    <ScrollView style={{ flex: 1 }} nestedScrollEnabled={true}>
@@ -119,41 +215,51 @@ export default function NovaRDOSScreen() {
     
       {salvo? (
       <View style={{ padding: 10, borderBottomWidth: 1, marginBottom: 10 }}>
-        <Text style={{ fontWeight: "bold", fontSize: 18 }}>{tipo}: {numeroRDOExibicao}</Text>
-        <Text>Data de criação: {selectedDate.toLocaleDateString()}</Text>
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>{tipo}: {numeroGerado}</Text>
+        <Text>Data de referência: {selectedDate.toLocaleDateString()}</Text>
         <Text>Status: {status}</Text>
       </View>
-    ):(<Text style={globalStyles.title}>Nova RDOS</Text>)}
+        ):(<Text style={globalStyles.title}>Nova RDOS</Text>)}
 
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Encarregado:</Text>
-      <Controller
-        control={control}
-        name="encarregado"
-        disabled={salvo}
-        render={({ field }) => (
-          <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
-            <Picker.Item label="Selecione um encarregado" value="" />
-            <Picker.Item label="Carlos Silva" value="Carlos Silva" />
-            <Picker.Item label="Ana Souza" value="Ana Souza" />
-          </Picker>
-        )}
-      />
-      {errors.encarregado && <Text style={{ color: "red" }}>{errors.encarregado.message}</Text>}
+        <Controller
+          control={control}
+          name="encarregadoId"
+          disabled={salvo}
+          render={({ field }) => (
+            <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
+              <Picker.Item label="Selecione um encarregado" value="" />
+              {encarregados.map((encarregado, index) => (
+              <Picker.Item
+                key={index}
+                label={encarregado.nome}  // Assume que o campo correto é numerodocontrato
+                value={encarregado.id}  // Define o valor como numerodocontrato
+              />)
+              )}
+            </Picker>
+          )}
+        />
+        {errors.encarregadoId && <Text style={{ color: "red" }}>{errors.encarregadoId.message}</Text>}
 
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Contrato:</Text>
-      <Controller
-        control={control}
-        name="contrato"
-        disabled={salvo}
-        render={({ field }) => (
-          <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
-            <Picker.Item label="Selecione um contrato" value="" />
-            <Picker.Item label="Contrato A" value="Contrato A" />
-            <Picker.Item label="Contrato B" value="Contrato B" />
-          </Picker>
-        )}
-      />
-      {errors.contrato && <Text style={{ color: "red" }}>{errors.contrato.message}</Text>}
+        <Controller
+          control={control}
+          name="empresaContratoId"
+          disabled={salvo}
+          render={({ field }) => (
+            <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
+              <Picker.Item label="Selecione um contrato" value="" />
+              {contratos.map((contrato, index) => (
+              <Picker.Item
+                key={index}
+                label={contrato.numeroDoContrato}  // Assume que o campo correto é numerodocontrato
+                value={contrato.id}  // Define o valor como numerodocontrato
+              />)
+              )}
+            </Picker>
+          )}
+        />
+        {errors.empresaContratoId && <Text style={{ color: "red" }}>{errors.empresaContratoId.message}</Text>}
 
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Data:</Text>
           {Platform.OS === "web" && !salvo ? (
@@ -167,68 +273,69 @@ export default function NovaRDOSScreen() {
               }}
               placeholder="DD-MM-YYYY"
             />
-          ) : (
-            <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-              <Text style={{ borderWidth: 1, padding: 8 }}>{selectedDate.toLocaleDateString()}</Text>
-            </TouchableOpacity>
-        )}
+            ) : 
+            (
+              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
+                <Text style={{ borderWidth: 1, padding: 8 }}>{selectedDate.toLocaleDateString()}</Text>
+              </TouchableOpacity>
+            )}
+          
         {showDatePicker && Platform.OS !== "web" && !salvo && (
-
-              <DateTimePicker
-                value={selectedDate}
-                mode="date"
-                display="spinner"
-                onChange={(event, date) => {
-                  setShowDatePicker(false);
-                  if (date) {
-                    setSelectedDate(date);
-                    setValue("data", date);
-                  }
-                }}
-              />
-              
-        )}
-      {errors.data && <Text style={{ color: "red" }}>{errors.data.message}</Text>}
-      
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="spinner"
+              onChange={(event, date) => {
+                setShowDatePicker(false);
+                if (date) {
+                  setSelectedDate(date);
+                  setValue("data", date);
+                }
+              }}
+            />            
+          )}
+        {errors.data && <Text style={{ color: "red" }}>{errors.data.message}</Text>}
+    
       <Text style={{paddingVertical:12, fontWeight:"bold"}} >Tipo:</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", padding:10 }}>
-        <TouchableOpacity onPress={() => setTipo("RDO")} disabled={salvo}>
-          <View
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 10,
-              borderWidth: 2,
-              borderColor: tipo === "RDO" ? "blue" : "gray",
-              backgroundColor: tipo === "RDO" ? "blue" : "white",
-              marginRight: 5,
-            }}
-          />
-        </TouchableOpacity>
-        <Text>RDO</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", padding:10 }}>
+          <TouchableOpacity onPress={() => setTipo("RDO")} disabled={salvo}>
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: tipo === "RDO" ? "blue" : "gray",
+                backgroundColor: tipo === "RDO" ? "blue" : "white",
+                marginRight: 5,
+              }}
+            />
+          </TouchableOpacity>
+          <Text>RDO</Text>
 
-        <TouchableOpacity onPress={() => setTipo("RDS")} style={{ marginLeft: 20 }} disabled={salvo}>
-          <View
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 10,
-              borderWidth: 2,
-              borderColor: tipo === "RDS" ? "blue" : "gray",
-              backgroundColor: tipo === "RDS" ? "blue" : "white",
-              marginRight: 5,
-            }}
-          />
-        </TouchableOpacity>
-        <Text>RDS</Text>
-      </View>
+          <TouchableOpacity onPress={() => setTipo("RDS")} style={{ marginLeft: 20 }} disabled={salvo}>
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: tipo === "RDS" ? "blue" : "gray",
+                backgroundColor: tipo === "RDS" ? "blue" : "white",
+                marginRight: 5,
+              }}
+            />
+          </TouchableOpacity>
+          <Text>RDS</Text>
+        </View>
 
-      {status === "" && (<TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} onPress={handleSubmit(onSubmit)} disabled={salvo}>
+      {status === "" && (<TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} 
+        onPress={() => {
+          setStatus("Aberto"); // Atualiza o estado antes de chamar o onSubmit
+          handleSubmit(onSubmit)(); // Chama o onSubmit com a função handleSubmit
+                      }} disabled={salvo}>
         <Text style={globalStyles.buttonText}>Criar</Text> 
-      </TouchableOpacity>)}
-
-
-      
+      </TouchableOpacity>)}     
 
       {status !== "" && 
         <SalvoOpcoes />
@@ -252,15 +359,16 @@ export default function NovaRDOSScreen() {
           <Text style={globalStyles.buttonText}>Excluir</Text>
         </TouchableOpacity>
       </View>
-)}
+      )}
+
       {status ==="Aberto" && !salvo && (
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
-              <TouchableOpacity
-                style={[globalStyles.button, { backgroundColor: "green" }]}
-                onPress={handleSave}
-              >
-                <Text style={globalStyles.buttonText}>Salvar</Text>
-              </TouchableOpacity>
+        <TouchableOpacity
+          style={[globalStyles.button, { backgroundColor: "green" }]}
+          onPress={handleSave}
+        >
+          <Text style={globalStyles.buttonText}>Salvar</Text>
+        </TouchableOpacity>
       </View>)}
 
     </View>
