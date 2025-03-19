@@ -66,6 +66,7 @@ export default function NovaRDOSScreen() {
   const [encarregados, setEncarregados] = useState<Encarregado[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [loading, setLoading] = useState(true);
+  const [docId, setDocId] = useState<string | "">("");
   const [numeroGerado, setNumeroGerado] = useState<string | null>(null);
   
   useEffect(() => {
@@ -88,6 +89,8 @@ export default function NovaRDOSScreen() {
       const result = await response.json();
   //    const numeroGerado = result.numero; // Número gerado no backend
       setNumeroGerado(result.numero)
+      setDocId(result.id);
+      console.log("docid",result.id)
       Alert.alert("Sucesso!", `RDO/RDS salvo com número ${result.numero}`);
     } catch (error) {
       console.warn("Sem internet. Gerando número provisório...");
@@ -165,7 +168,6 @@ export default function NovaRDOSScreen() {
   const carregarDados = async () => {
     console.log(`${API_URL}/api/v1/listar/encarregados`);
     console.log(`${API_URL}/api/v1/listar/contratos`);
-    console.log(`${API_URL}/api/v1/listar/maos-de-obra`);
     try {
       const [resEnc, resCont] = await Promise.all([
         fetch(`${API_URL}/api/v1/listar/encarregados`),
@@ -338,7 +340,7 @@ export default function NovaRDOSScreen() {
       </TouchableOpacity>)}     
 
       {status !== "" && 
-        <SalvoOpcoes />
+        <SalvoOpcoes id={docId} status={status}/>
       }
 
       {salvo && (

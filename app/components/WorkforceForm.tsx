@@ -5,71 +5,110 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
 
 interface WorkforceModalProps {
   visible: boolean;
-  initialWorkforces: {type: string; quantity?: number}[]
+  currentWorkforces: Workforce[];
+  savesuccess:boolean;
   onClose: () => void;
-  onSave: (selectedWorkforces: { type: string; quantity?: number }[])=> void;
+  onSave: (selectedWorkforces: { id: string; nome: string; quantidade?: number }[])=> void;
 }
 
-const allWorkforces = [
-  "Mestre de obras",
-  "Pedreiro",
-  "Eletricista",
-  "Encanador",
-  "Carpinteiro",
-];
+type Workforce = {
+  id: string;
+  nome: string;
+  quantidade?:number;
+};
+
+type FormData = {
+  rdosId: string;
+  maoDeObraId: string;
+  quantidade?: number;
+};
+
+const API_URL = "http://192.168.0.29:3000";
 
 const WorkforceModal: React.FC<WorkforceModalProps> = ({
   visible,
-  initialWorkforces,
+  currentWorkforces,
+  savesuccess,
   onClose,
   onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWorkforces, setSelectedWorkforces] = useState<
-    { type: string; quantity?: number }[]
+  Workforce[]
   >([]);
-  useEffect(() => {
-    if (visible) {
-      setSelectedWorkforces(initialWorkforces);
-    }
-  }, [visible, initialWorkforces]);
-  const [tempSelectedWorforce, setTempSelectedWorkforce] = useState<string>(''); // Serviço selecionado temporariamente
+  const [initialWorkforces, setInitialWorkforces] = useState<
+  Workforce[]
+  >([]);
+
+  const [tempSelectedWorkforceId, setTempSelectedWorkforceId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+  const [workforces, setWorkforces] = useState<Workforce[]>([]);
+    useEffect(() => {
+      if (visible) {
+      setSelectedWorkforces(currentWorkforces);
+    }}, [visible]);
+    useEffect(() => {
+      if (visible) {
+      fetchWorkforces();
+    }}, [visible]);
   
 
   // Filtrar funções de mão de obra pelo termo de busca
-  const filteredWorkforces = allWorkforces.filter((workforce) =>
-    workforce.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredWorkforces = workforces.filter((workforce) =>
+    workforce.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Adicionar mão de obra à lista selecionada
-  const addWorkforce = (workforce: string) => {
-    if (!selectedWorkforces.some((w) => w.type === workforce)) {
-      setSelectedWorkforces([
-        ...selectedWorkforces,
-        { type: workforce, quantity: 1 },
-      ]);
-      setTempSelectedWorkforce("")
+  const fetchWorkforces = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/listar/maos-de-obra`);
+      const data = await response.json();
+      const dados = data.map((d: { id: any; nome: any; })=> ({
+        id: d.id,
+        nome: d.nome
+      }));
+      console.log("Dados",dados)
+      setWorkforces(dados);
+    } catch (error) {
+      console.error("Erro ao buscar mão de obra:", error);
     }
   };
 
-  const updateQuantity = (workforce: string, quantity: number) => {
+/*   const getInitialWorkforcesFromIds = docWorkforces.forEach(({ maoDeObraId, quantidade }) => {
+      setSelectedWorkforces(null);
+      setInitialWorkforces(null);
+      const workforce = workforces.find(w => w.id === maoDeObraId);
+      if (workforce) {
+        setSelectedWorkforces([...selectedWorkforces, {id:maoDeObraId, nome:workforce.nome, quantidade:quantidade}]);
+        setInitialWorkforces([...initialWorkforces, {id:maoDeObraId, nome:workforce.nome, quantidade:quantidade}]);
+        console.log("sel",selectedWorkforces);
+        console.log("ini",initialWorkforces);
+      }
+    });
+  }; */
+
+  // Adicionar mão de obra à lista selecionada
+  const addWorkforce = (workforce: Workforce) => {
+    if (!selectedWorkforces.some((w) => w.id === workforce.id)) {
+      setSelectedWorkforces([...selectedWorkforces,{...workforce }]);
+    }
+  };
+
+  const updatequantidade = (id: string, quantidade: number) => {
     setSelectedWorkforces((prev) =>
-      prev.map((w) => (w.type === workforce ? { ...w, quantity } : w))
+      prev.map((w) => (w.id === id ? { ...w, quantidade } : w))
     );
   };
 
   // Remover mão de obra da lista selecionada
-  const removeWorkforce = (workforce: string) => {
+  const removeWorkforce = (id: string) => {
     setSelectedWorkforces(
-      selectedWorkforces.filter((item) => item.type !== workforce)
+      selectedWorkforces.filter((item) => item.id !== id)
     );
   };
 
@@ -77,7 +116,7 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          {initialWorkforces.length ==0 ? 
+          {currentWorkforces.length ==0 ? 
           (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
           (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
 
@@ -85,10 +124,10 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
           <View style={{flexDirection:"column"}}>
               <DropDownPicker
                 open={open}
-                value={tempSelectedWorforce}
-                items={filteredWorkforces.map(workforce => ({ label: workforce, value: workforce }))}
+                value={tempSelectedWorkforceId}
+                items={filteredWorkforces.map(workforce => ({ label: workforce.nome, value: workforce.id}))}
                 setOpen={setOpen}
-                setValue={setTempSelectedWorkforce}
+                setValue={setTempSelectedWorkforceId}
                 placeholder="Selecione uma mão de obra"
                 searchable={true}
                 searchPlaceholder="Pesquisar..."
@@ -101,12 +140,14 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
                 }}
               />
               <TouchableOpacity 
-                disabled={tempSelectedWorforce===null}
+                disabled={tempSelectedWorkforceId===null}
                 style={globalStyles.editButton}               
                 onPress={() => {
-                    if (tempSelectedWorforce) {
-                    addWorkforce(tempSelectedWorforce); // Adiciona o serviço selecionado à lista final
-                    }
+                  const pickedWorkforce = filteredWorkforces.find(w => w.id === tempSelectedWorkforceId);
+                  if (pickedWorkforce) {
+                    addWorkforce(pickedWorkforce);
+                    setTempSelectedWorkforceId(null)
+                  }
                 }}
                 >
                 <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
@@ -116,18 +157,18 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
 
           {/* Mão de obra Selecionada */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedWorkforces.map(({type,quantity}) => (
-            <View key={type} style={globalStyles.selectedItem}>
-              <Text>{type}</Text>
+          {selectedWorkforces.map((workforce) => (
+            <View key={workforce.nome} style={globalStyles.selectedItem}>
+              <Text>{workforce.nome}</Text>
               {/* Input para atualizar quantidade */}
               <TextInput
                 style={globalStyles.input}
                 keyboardType="numeric"
-                value={quantity?.toString()}
-                onChangeText={(text) => updateQuantity(type, parseInt(text) || 0)}
+                value={workforce.quantidade?.toString()}
+                onChangeText={(text) => updatequantidade(workforce.id, parseInt(text) || 0)}
               />
 
-              <TouchableOpacity onPress={() => removeWorkforce(type)}>
+              <TouchableOpacity onPress={() => removeWorkforce(workforce.id)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>
             </View>
@@ -137,7 +178,11 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
           <View style={globalStyles.buttonContainer}>
             <TouchableOpacity
               style={globalStyles.button}
-              onPress={() => onSave(selectedWorkforces)}
+              onPress={() => {
+                console.log("sel", selectedWorkforces)
+                onSave(selectedWorkforces);
+              }
+              }
             >
               <Text style={globalStyles.buttonText}>Salvar</Text>
             </TouchableOpacity>
@@ -145,9 +190,8 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
               style={globalStyles.buttonCancel}
               onPress={() => {
                 onClose(); // Chama o onClose
-                setTempSelectedWorkforce(""); // Limpa o valor de tempSelectedService
+                setTempSelectedWorkforceId(null); // Limpa o valor de tempSelectedService
               }}
-              
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
             </TouchableOpacity>

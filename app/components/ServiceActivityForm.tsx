@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Button,
 
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
