@@ -9,70 +9,106 @@ import {
 import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
 
-
 interface BreakModalProps {
   visible: boolean;
-  initialBreaks: {name: string; startTime?: string; endTime?: string }[] ;
+  currentBreaks: Break[];
+  savesuccess:boolean;
   onClose: () => void;
-  onSave: (selectedBreaks: {name: string; startTime?: string; endTime?: string }[]) => void;
+  onSave: (selectedBreaks: { id: string; nome: string; quantidade?: number }[])=> void;
 }
 
-const allBreaks = [
-  "Chuva",
-  "Acidente",
-  "Esclarecimentos com cliente",
-  "Almoço",
-  "Jantar",
-];
+type Break = {
+  id: string;
+  nome: string;
+  dataHoraInicio?:string;
+  dataHoraFim?:string;
+};
+
+type FormData = {
+  rdosId: string;
+  maoDeObraId: string;
+  quantidade?: number;
+};
+
+const API_URL = "http://192.168.0.29:3000";
 
 const BreakModal: React.FC<BreakModalProps> = ({
   visible,
-  initialBreaks,
+  currentBreaks,
+  savesuccess,
   onClose,
   onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedBreaks, setSelectedBreaks] = useState<{name: string; startTime?: string; endTime?: string }[]>([]);
+  const [selectedBreaks, setSelectedBreaks] = useState<
+  Break[]
+  >([]);
+  const [initialBreaks, setInitialBreaks] = useState<
+  Break[]
+  >([]);
 
-  useEffect(() => {
-    if (visible) {
-      setSelectedBreaks(initialBreaks);
-    }
-  }, [visible, initialBreaks]);
-  const [tempSelectedBreak, setTempSelectedBreak] = useState<string>(''); // Serviço selecionado temporariamente
+  const [tempSelectedBreakId, setTempSelectedBreakId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+  const [breaks, setBreaks] = useState<Break[]>([]);
+  const [tempStartTimes, setTempStartTimes] = useState<{ [key: string]: string }>({});
+  const [tempEndTimes, setTempEndTimes] = useState<{ [key: string]: string }>({});
+
+  const [tempStartTime, setTempStartTime] = useState<string>("");
+  const [tempEndTime, setTempEndTime] = useState<string>("");
+
+    useEffect(() => {
+      if (visible) {
+      setSelectedBreaks(currentBreaks);
+    }}, [visible]);
+    useEffect(() => {
+      if (visible) {
+      fetchBreaks();
+    }}, [visible]);
   
 
-  // Filtrar funções de mão de obra pelo termo de busca
-  const filteredBreaks = allBreaks.filter((Break) =>
-    Break.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filtrar equipamentos pelo termo de busca
+  const filteredBreaks = breaks.filter((abreak) =>
+    abreak.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Adicionar mão de obra à lista selecionada
-  const addBreak = (abreak: string) => {
-    if (!selectedBreaks.some((b) => b.name === abreak)) {
-      setSelectedBreaks([...selectedBreaks, 
-        {name: abreak},]);
-        setTempSelectedBreak("");
+  const fetchBreaks = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/listar/motivos-de-pausa`);
+      const data = await response.json();
+      const dados = data.map((d: { id: any; nome: any; })=> ({
+        id: d.id,
+        nome: d.nome
+      }));
+      console.log("Dados",dados)
+      setBreaks(dados);
+    } catch (error) {
+      console.error("Erro ao buscar pausas:", error);
     }
   };
-  
+
+  // Adicionar pausa à lista selecionada
+  const addBreak = (abreak: Break) => {
+    if (!selectedBreaks.some((b) => b.id === abreak.id)) {
+      setSelectedBreaks([...selectedBreaks,{...abreak }]);
+    }
+  };
+
   const updateStartTime = (abreak: string, startTime:string) => {
     setSelectedBreaks((prev) =>
-      prev.map((b) => (b.name === abreak ? { ...b, startTime } : b))
+      prev.map((b) => (b.id === abreak ? { ...b, dataHoraInicio:startTime } : b))
     );
   };
 
   const updateEndTime = (abreak: string, endTime:string) => {
     setSelectedBreaks((prev) =>
-      prev.map((b) => (b.name === abreak ? { ...b, endTime } : b))
+      prev.map((b) => (b.id === abreak ? { ...b, dataHoraFim:endTime } : b))
     );
   };
 
-  // Remover mão de obra da lista selecionada
-  const removeBreak = (abreak: string) => {
+  // Remover pausa da lista selecionada
+  const removeBreak = (id: string) => {
     setSelectedBreaks(
-      selectedBreaks.filter((item) => item.name !== abreak)
+      selectedBreaks.filter((item) => item.id !== id)
     );
   };
 
@@ -80,63 +116,70 @@ const BreakModal: React.FC<BreakModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          {initialBreaks.length ==0 ? 
-                    (<Text style={globalStyles.modalTitle}>Inserir Mão de Obra</Text>) :
-                    (<Text style={globalStyles.modalTitle}>Editar Mão de Obra</Text>)}
+          {currentBreaks.length ==0 ? 
+          (<Text style={globalStyles.modalTitle}>Inserir Pausa</Text>) :
+          (<Text style={globalStyles.modalTitle}>Editar Pausa</Text>)}
 
           {/* Lista de pausas filtradas */}
           <View style={{flexDirection:"column"}}>
-                  <DropDownPicker
-                  open={open}
-                  value={tempSelectedBreak}
-                  items={filteredBreaks.map(abreak => ({ label: abreak, value: abreak }))}
-                  setOpen={setOpen}
-                  setValue={setTempSelectedBreak}
-                  placeholder="Selecione uma pausa"
-                  searchable={true}
-                  searchPlaceholder="Pesquisar..."
-                  containerStyle={globalStyles.dropdownContainer}
-                  style={globalStyles.dropdown}
-                  dropDownContainerStyle={globalStyles.dropdownList}
-                  maxHeight={150}  // Define a altura máxima para o dropdown
-                  scrollViewProps={{
-                      nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
-                  }}
+              <DropDownPicker
+                open={open}
+                value={tempSelectedBreakId}
+                items={filteredBreaks.map(abreak => ({ label: abreak.nome, value: abreak.id}))}
+                setOpen={setOpen}
+                setValue={setTempSelectedBreakId}
+                placeholder="Selecione uma pausa"
+                searchable={true}
+                searchPlaceholder="Pesquisar..."
+                containerStyle={globalStyles.dropdownContainer}
+                style={globalStyles.dropdown}
+                dropDownContainerStyle={globalStyles.dropdownList}
+                maxHeight={150}  // Define a altura máxima para o dropdown
+                scrollViewProps={{
+                    nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
+                }}
               />
               <TouchableOpacity 
-                  disabled={tempSelectedBreak===null}
-                  style={globalStyles.editButton}               
-                  onPress={() => {
-                      if (tempSelectedBreak) {
-                      addBreak(tempSelectedBreak); // Adiciona o serviço selecionado à lista final
-                      }
-                  }}
-                  >
-                  <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
+                disabled={tempSelectedBreakId===null}
+                style={globalStyles.editButton}               
+                onPress={() => {
+                  const pickedBreak = filteredBreaks.find(w => w.id === tempSelectedBreakId);
+                  if (pickedBreak) {
+                    addBreak(pickedBreak);
+                    setTempSelectedBreakId(null)
+                  }
+                }}
+                >
+                <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
               </TouchableOpacity>
-              </View>
+          </View>
 
-          {/* Pausa Selecionada */}
+          {/* Pausas Selecionadas */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedBreaks.map(({name, startTime, endTime}) => (
-            <View key={name} style={globalStyles.selectedItem}>
-              <Text>{name}</Text>
+          {selectedBreaks.map((abreak) => (
+            <View key={abreak.nome} style={globalStyles.selectedItem}>
+              <Text>{abreak.nome}</Text>
               {/* Input para atualizar hora de início */}
               <TextInput
                 style={globalStyles.input}
                 keyboardType="default"
-                value={startTime?.toString()}
-                onChangeText={(text) => updateStartTime(name, text || "0")}
+                value={tempStartTimes[abreak.id] ?? abreak.dataHoraInicio?.toString() ?? ""}
+                onChangeText={(text) => setTempStartTimes(prev => ({ ...prev, [abreak.id]: text }))}
+                onBlur={() => {
+                  updateStartTime(abreak.id, tempStartTimes[abreak.id] ?? abreak.dataHoraInicio);
+                }} 
               />
               {/* Input para atualizar hora de fim */}
               <TextInput
                 style={globalStyles.input}
                 keyboardType="default"
-                value={endTime?.toString()}
-                onChangeText={(text) => updateEndTime(name, text || "")}
-              />
-
-              <TouchableOpacity onPress={() => removeBreak(name)}>
+                value={tempEndTimes[abreak.id] ?? abreak.dataHoraFim?.toString() ?? ""}
+                onChangeText={(text) => setTempEndTimes(prev => ({ ...prev, [abreak.id]: text }))}
+                onBlur={() => {
+                  updateEndTime(abreak.id, tempEndTimes[abreak.id] ?? abreak.dataHoraFim);
+                }} 
+              />         
+              <TouchableOpacity onPress={() => removeBreak(abreak.id)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>
             </View>
@@ -146,7 +189,11 @@ const BreakModal: React.FC<BreakModalProps> = ({
           <View style={globalStyles.buttonContainer}>
             <TouchableOpacity
               style={globalStyles.button}
-              onPress={() => onSave(selectedBreaks)}
+              onPress={() => {
+                console.log("sel", selectedBreaks)
+                onSave(selectedBreaks);
+              }
+              }
             >
               <Text style={globalStyles.buttonText}>Salvar</Text>
             </TouchableOpacity>
@@ -154,9 +201,8 @@ const BreakModal: React.FC<BreakModalProps> = ({
               style={globalStyles.buttonCancel}
               onPress={() => {
                 onClose(); // Chama o onClose
-                setTempSelectedBreak(""); // Limpa o valor de tempSelectedService
+                setTempSelectedBreakId(null); // Limpa o valor de tempSelectedService
               }}
-              
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
             </TouchableOpacity>
@@ -168,4 +214,3 @@ const BreakModal: React.FC<BreakModalProps> = ({
 };
 
 export default BreakModal;
-

@@ -5,70 +5,97 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
 
 interface EquipmentModalProps {
   visible: boolean;
-  initialEquipments: { type: string; quantity?: number }[]; // A lista de mão de obra inicial
+  currentEquipments: Equipment[];
+  savesuccess:boolean;
   onClose: () => void;
-  onSave: (selectedEquipments: { type: string; quantity?: number }[]) => void;
+  onSave: (selectedEquipments: { id: string; nome: string; quantidade?: number }[])=> void;
 }
 
-const allEquipments = [
-  "Capacete com lanterna",
-  "Cone sinalizador",
-  "Escavadeira",
-  "Botas",
-  "Guarda-vidas",
-];
+type Equipment = {
+  id: string;
+  nome: string;
+  quantidade?:number;
+};
+
+type FormData = {
+  rdosId: string;
+  maoDeObraId: string;
+  quantidade?: number;
+};
+
+const API_URL = "http://192.168.0.29:3000";
 
 const EquipmentModal: React.FC<EquipmentModalProps> = ({
   visible,
-  initialEquipments,
+  currentEquipments,
+  savesuccess,
   onClose,
   onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedEquipments, setSelectedEquipments] = useState<{ type: string; quantity?: number }[]>([]);
+  const [selectedEquipments, setSelectedEquipments] = useState<
+  Equipment[]
+  >([]);
+  const [initialEquipments, setInitialEquipments] = useState<
+  Equipment[]
+  >([]);
 
-  useEffect(() => {
-    if (visible) {
-      setSelectedEquipments(initialEquipments);
-    }
-  }, [visible, initialEquipments]);
-    const [tempSelectedEquipment, setTempSelectedEquipment] = useState<string>(''); // Serviço selecionado temporariamente
-    const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
-    
+  const [tempSelectedEquipmentId, setTempSelectedEquipmentId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+    useEffect(() => {
+      if (visible) {
+      setSelectedEquipments(currentEquipments);
+    }}, [visible]);
+    useEffect(() => {
+      if (visible) {
+      fetchEquipments();
+    }}, [visible]);
+  
 
   // Filtrar equipamentos pelo termo de busca
-  const filteredEquipments = allEquipments.filter((Equipment) =>
-    Equipment.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredEquipments = equipments.filter((equipment) =>
+    equipment.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Adicionar equipamento à lista selecionada
-  const addEquipment = (equipment: string) => {
-    if (!selectedEquipments.some((e) => e.type === equipment)) {
-      setSelectedEquipments([
-        ...selectedEquipments,
-        { type: equipment, quantity: 1 },
-      ]);
-      setTempSelectedEquipment("")
+  const fetchEquipments = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/listar/equipamentos`);
+      const data = await response.json();
+      const dados = data.map((d: { id: any; nome: any; })=> ({
+        id: d.id,
+        nome: d.nome
+      }));
+      console.log("Dados",dados)
+      setEquipments(dados);
+    } catch (error) {
+      console.error("Erro ao buscar equipamento:", error);
     }
   };
 
-  const updateQuantity = (equipment: string, quantity: number) => {
+  // Adicionar equipamento à lista selecionada
+  const addEquipment = (equipment: Equipment) => {
+    if (!selectedEquipments.some((w) => w.id === equipment.id)) {
+      setSelectedEquipments([...selectedEquipments,{...equipment }]);
+    }
+  };
+
+  const updatequantidade = (id: string, quantidade: number) => {
     setSelectedEquipments((prev) =>
-      prev.map((e) => (e.type === equipment ? { ...e, quantity } : e))
+      prev.map((w) => (w.id === id ? { ...w, quantidade } : w))
     );
   };
 
   // Remover equipamento da lista selecionada
-  const removeEquipment = (Equipment: string) => {
+  const removeEquipment = (id: string) => {
     setSelectedEquipments(
-      selectedEquipments.filter((item) => item.type !== Equipment)
+      selectedEquipments.filter((item) => item.id !== id)
     );
   };
 
@@ -76,18 +103,18 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={globalStyles.modalContainer}>
         <View style={globalStyles.modalContent}>
-          {initialEquipments.length ==0 ? 
-          (<Text style={globalStyles.modalTitle}>Inserir Equipamentos</Text>):
-          (<Text style={globalStyles.modalTitle}>Editar Equipamentos</Text>)}
+          {currentEquipments.length ==0 ? 
+          (<Text style={globalStyles.modalTitle}>Inserir Equipamento</Text>) :
+          (<Text style={globalStyles.modalTitle}>Editar Equipamento</Text>)}
 
           {/* Lista de equipamentos filtrados */}
           <View style={{flexDirection:"column"}}>
               <DropDownPicker
                 open={open}
-                value={tempSelectedEquipment}
-                items={filteredEquipments.map(equipment => ({ label: equipment, value: equipment }))}
+                value={tempSelectedEquipmentId}
+                items={filteredEquipments.map(equipment => ({ label: equipment.nome, value: equipment.id}))}
                 setOpen={setOpen}
-                setValue={setTempSelectedEquipment}
+                setValue={setTempSelectedEquipmentId}
                 placeholder="Selecione um equipamento"
                 searchable={true}
                 searchPlaceholder="Pesquisar..."
@@ -100,31 +127,34 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                 }}
               />
               <TouchableOpacity 
-                disabled={tempSelectedEquipment===null}
+                disabled={tempSelectedEquipmentId===null}
                 style={globalStyles.editButton}               
                 onPress={() => {
-                    if (tempSelectedEquipment) {
-                    addEquipment(tempSelectedEquipment); // Adiciona o serviço selecionado à lista final
-                    }
+                  const pickedEquipment = filteredEquipments.find(w => w.id === tempSelectedEquipmentId);
+                  if (pickedEquipment) {
+                    addEquipment(pickedEquipment);
+                    setTempSelectedEquipmentId(null)
+                  }
                 }}
                 >
                 <Text style={{fontSize: 12,fontWeight: "bold",color: '#fff'}}>+</Text>
               </TouchableOpacity>
           </View>
 
-
           {/* Equipamentos Selecionados */}
           <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-          {selectedEquipments.map(({type,quantity}) => (
-            <View key={type} style={globalStyles.selectedItem}>
-              <Text>{type}</Text>
+          {selectedEquipments.map((equipment) => (
+            <View key={equipment.nome} style={globalStyles.selectedItem}>
+              <Text>{equipment.nome}</Text>
+              {/* Input para atualizar quantidade */}
               <TextInput
                 style={globalStyles.input}
                 keyboardType="numeric"
-                value={quantity?.toString()}
-                onChangeText={(text) => updateQuantity(type, parseInt(text) || 0)}
-              />  
-              <TouchableOpacity onPress={() => removeEquipment(type)}>
+                value={equipment.quantidade?.toString()}
+                onChangeText={(text) => updatequantidade(equipment.id, parseInt(text) || 0)}
+              />
+
+              <TouchableOpacity onPress={() => removeEquipment(equipment.id)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>
             </View>
@@ -134,7 +164,11 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
           <View style={globalStyles.buttonContainer}>
             <TouchableOpacity
               style={globalStyles.button}
-              onPress={() => onSave(selectedEquipments)}
+              onPress={() => {
+                console.log("sel", selectedEquipments)
+                onSave(selectedEquipments);
+              }
+              }
             >
               <Text style={globalStyles.buttonText}>Salvar</Text>
             </TouchableOpacity>
@@ -142,7 +176,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
               style={globalStyles.buttonCancel}
               onPress={() => {
                 onClose(); // Chama o onClose
-                setTempSelectedEquipment(""); // Limpa o valor de tempSelectedService
+                setTempSelectedEquipmentId(null); // Limpa o valor de tempSelectedService
               }}
             >
               <Text style={globalStyles.buttonText}>Cancelar</Text>
@@ -155,4 +189,5 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
 };
 
 export default EquipmentModal;
+
 
