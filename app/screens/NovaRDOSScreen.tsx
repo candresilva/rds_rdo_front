@@ -9,6 +9,7 @@ import { globalStyles } from "../styles/globalStyles";
 import SalvoOpcoes from "../components/SalvoOpcoes";
 import { ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRoute } from "@react-navigation/native";
 
 const STORAGE_KEY = "@rdo_rds_list";
 const API_URL = "http://192.168.0.29:3000";
@@ -58,6 +59,8 @@ export default function NovaRDOSScreen() {
     },
   });
 
+  
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [tipo, setTipo] = useState<"RDO" | "RDS">("RDO");
@@ -72,7 +75,6 @@ export default function NovaRDOSScreen() {
   useEffect(() => {
     carregarDados();
   }, []);
-
 
   const onSubmit = async (data: FormData) => {
     const updatedData = { ...data, status:"Aberto", tipo };
@@ -110,6 +112,7 @@ export default function NovaRDOSScreen() {
   const onExcluir = () => {
     setStatus("Excluído");
   };
+
   const onEditar = () => {
     setSalvo(false);
   };

@@ -66,7 +66,7 @@ const BreakModal: React.FC<BreakModalProps> = ({
     }}, [visible]);
   
 
-  // Filtrar equipamentos pelo termo de busca
+  // Filtrar pausas pelo termo de busca
   const filteredBreaks = breaks.filter((abreak) =>
     abreak.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );

@@ -72,7 +72,7 @@ const SalvoOpcoes: React.FC<SalvoOpcoesProps> = ({id,status}) => {
   const [currentBreaks, setCurrentBreaks] = useState<Break[]>([]);
 
 // ---------------- Efeitos de mão de obra --------------------------  
-   useEffect(() => {
+    useEffect(() => {
     if ((DocWorkforces && DocWorkforces.length > 0) || (workforceModalVisible===false && id)) {
       getInitialWorkforces(DocWorkforces);
       console.log("cf",currentWorkforces);
@@ -89,10 +89,10 @@ const SalvoOpcoes: React.FC<SalvoOpcoesProps> = ({id,status}) => {
     if (status !== "" && id) {
       fetchWorkforces();
        }
-  }, [status, id]); 
+  }, [status, id]);  
 
 // ---------------- Efeitos de equipamentos --------------------------  
-   useEffect(() => {
+    useEffect(() => {
     if ((DocEquipments && DocEquipments.length > 0) || (equipmentModalVisible===false && id)) {
       getInitialEquipments(DocEquipments);
       console.log("ce",currentEquipments);
@@ -110,9 +110,9 @@ const SalvoOpcoes: React.FC<SalvoOpcoesProps> = ({id,status}) => {
       fetchEquipments();
       }
   }, [status, id]); 
-
+ 
 // ---------------- Efeitos de pausas --------------------------  
- useEffect(() => {
+  useEffect(() => {
   if ((DocBreaks && DocBreaks.length > 0) || (abreakModalVisible===false && id)) {
     getInitialBreaks(DocBreaks);
     console.log("cb",currentBreaks);
@@ -129,9 +129,9 @@ useEffect(() => {
   if (status !== "" && id) {
     fetchBreaks();
     }
-}, [status, id]);
+}, [status, id]); 
 
-/* useEffect(() => {
+/*  useEffect(() => {
   if ((saveSuccess && id)||(status !== "" && id)||(
     (abreakModalVisible===false && id)||
     (equipmentModalVisible===false && id)||
@@ -140,7 +140,7 @@ useEffect(() => {
     updateAllData();
   }
 }, [saveSuccess, id , status, abreakModalVisible, equipmentModalVisible, workforceModalVisible]);
- */
+  */
 
 // ------------- Funções de Mão de obra ----------------------- 
   const fetchWorkforces = async () => {
