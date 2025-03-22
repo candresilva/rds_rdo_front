@@ -49,6 +49,8 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
   const [tempSelectedEquipmentId, setTempSelectedEquipmentId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  
     useEffect(() => {
       if (visible) {
       setSelectedEquipments(currentEquipments);
@@ -175,7 +177,8 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
             <TouchableOpacity
               style={globalStyles.buttonCancel}
               onPress={() => {
-                onClose(); // Chama o onClose
+                setSaveSuccess((prev)=>!prev)  
+                onClose();
                 setTempSelectedEquipmentId(null); // Limpa o valor de tempSelectedService
               }}
             >

@@ -3,7 +3,7 @@ import { AppState } from "react-native"; // Importa AppState
 import { createStackNavigator } from "@react-navigation/stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import HomeScreen from "../screens/HomeScreen";
-import NovaRDOSScreen from "../screens/NovaRDOSScreen";
+import NovaRDOSScreen from "../screens/NovaRDOSScreen copy";
 import ListagemRDOs from "../screens/ViewRDOSScreen";
 import SingleRDOSScreen from "../screens/SingleRDOSScreen";
 
@@ -25,7 +25,7 @@ export default function AppNavigator() {
       if (nextAppState === "active") {
         sincronizarPendentes();
       }
-    });
+    }); 
 
     return () => subscription.remove(); // Remove o listener ao desmontar
   }, []);
@@ -33,6 +33,7 @@ export default function AppNavigator() {
   const sincronizarPendentes = async () => {
     try {
       const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
+      console.log("pend",listaSalva)
       if (!listaSalva) return;
 
       const listaPendentes = JSON.parse(listaSalva);
@@ -60,6 +61,15 @@ export default function AppNavigator() {
       }
     } catch (error) {
       console.error("Erro ao sincronizar:", error);
+    }
+  };
+
+  const clearStorage = async () => {
+    try {
+      await AsyncStorage.removeItem("@rdo_rds_pendentes");
+      console.log('AsyncStorage esvaziado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao esvaziar o AsyncStorage:', error);
     }
   };
 

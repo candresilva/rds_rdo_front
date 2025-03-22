@@ -49,6 +49,8 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
   const [tempSelectedWorkforceId, setTempSelectedWorkforceId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
   const [workforces, setWorkforces] = useState<Workforce[]>([]);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  
     useEffect(() => {
       if (visible) {
       setSelectedWorkforces(currentWorkforces);
@@ -189,7 +191,8 @@ const WorkforceModal: React.FC<WorkforceModalProps> = ({
             <TouchableOpacity
               style={globalStyles.buttonCancel}
               onPress={() => {
-                onClose(); // Chama o onClose
+                setSaveSuccess((prev)=>!prev)
+                onClose();
                 setTempSelectedWorkforceId(null); // Limpa o valor de tempSelectedService
               }}
             >

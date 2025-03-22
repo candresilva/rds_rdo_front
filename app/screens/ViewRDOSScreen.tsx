@@ -5,6 +5,7 @@ import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
 import { RootStackParamList } from "../navigation/AppNavigator"; // ajuste o caminho conforme seu projeto
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_URL = "http://192.168.0.29:3000";
 
@@ -71,6 +72,45 @@ const ListagemRDOs = () => {
         setEncarregados(Array.isArray(data) ? data : []);
       });
   }, []);
+
+  useEffect(() => {
+    sincronizarPendentes(); 
+  },[]);
+
+  const sincronizarPendentes = async () => {
+    try {
+      const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
+      console.log("pend",listaSalva)
+      if (!listaSalva) return;
+
+      const listaPendentes = JSON.parse(listaSalva);
+      const listaSincronizada = [];
+
+      for (const documento of listaPendentes) {
+        const response = await fetch("http://192.168.0.29:3000/api/v1/criar/rdos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(documento),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`RDO/RDS ${documento.numero} sincronizado como ${result.numero}`);
+        } else {
+          listaSincronizada.push(documento); // Mantém no storage se falhar
+        }
+      }
+
+      if (listaSincronizada.length > 0) {
+        await AsyncStorage.setItem("@rdo_rds_pendentes", JSON.stringify(listaSincronizada));
+      } else {
+        await AsyncStorage.removeItem("@rdo_rds_pendentes");
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar:", error);
+    }
+  };
+
   
   const rdosFiltrados = rdos.filter((rdo) => 
     (!filtroContrato || 

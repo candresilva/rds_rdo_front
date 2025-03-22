@@ -9,7 +9,11 @@ import { globalStyles } from "../styles/globalStyles";
 import SalvoOpcoes from "../components/SalvoOpcoes";
 import { ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { RootStackParamList } from "../navigation/AppNavigator"; // ajuste o caminho conforme seu projeto
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import uuid from 'react-native-uuid';
+
 
 const STORAGE_KEY = "@rdo_rds_list";
 const API_URL = "http://192.168.0.29:3000";
@@ -17,6 +21,7 @@ const API_URL = "http://192.168.0.29:3000";
 //const API_URL = "http://localhost:3000";
 
 type FormData = {
+  id?:string;
   encarregadoId: string;
   empresaContratoId: string;
   data: Date;
@@ -35,6 +40,7 @@ type Contrato = {
   numeroDoContrato: string;
 };
 
+type NavigationProps = NativeStackNavigationProp<RootStackParamList, "DetalhesRDO">;
 
 const schema = Yup.object().shape({
   encarregadoId: Yup.string().required("Selecione um encarregado"),
@@ -60,13 +66,13 @@ export default function NovaRDOSScreen() {
     },
   });
 
+  const navigation = useNavigation<NavigationProps>();
   
-
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [tipo, setTipo] = useState<"RDO" | "RDS">("RDO");
   const [salvo, setSalvo] = useState(false);
-  const [status, setStatus] = useState<"Aberto" | "Encerrado" | "Excluído" | "">(""); 
+  const [status, setStatus] = useState<"Aberto" | "Encerrado" | "Excluído" | "Pendente" | "">(""); 
   const [encarregados, setEncarregados] = useState<Encarregado[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +83,9 @@ export default function NovaRDOSScreen() {
     carregarDados();
   }, []);
 
-
+  useEffect(() => {
+    sincronizarPendentes(); 
+  },[]);
 
   const onSubmit = async (data: FormData) => {
     const updatedData = { ...data, status:"Aberto", tipo };
@@ -90,22 +98,60 @@ export default function NovaRDOSScreen() {
       });
   
       if (!response.ok) throw new Error("Erro ao salvar no servidor");
-  
+
       const result = await response.json();
-  //    const numeroGerado = result.numero; // Número gerado no backend
       setNumeroGerado(result.numero)
       setDocId(result.id);
       console.log("docid",result.id)
-      Alert.alert("Sucesso!", `RDO/RDS salvo com número ${result.numero}`);
+      Alert.alert("Sucesso!", `${result.tipo} salvo com número ${result.numero}`,
+        [
+          { text: "OK", onPress: () => navigation.navigate("DetalhesRDO", { id: result.id }) }
+        ]);
     } catch (error) {
       console.warn("Sem internet. Gerando número provisório...");
       
       const numeroProvisorio = gerarNumeroProvisorio(data.tipo);
-      const dataComNumeroProvisorio = { ...data, numero: numeroProvisorio, status: "Pendente" };
+      const idProvisorio = gerarIdProvisorio();      
+      const dataComNumeroEIdProvisorio = { ...data,
+         id:idProvisorio, numero: numeroProvisorio, status: "Pendente" };
   
-      await salvarOffline(dataComNumeroProvisorio);
+      await salvarOffline(dataComNumeroEIdProvisorio);
      }
     setSalvo(true);
+  };
+
+  const sincronizarPendentes = async () => {
+    try {
+      const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
+      console.log("pend",listaSalva)
+      if (!listaSalva) return;
+
+      const listaPendentes = JSON.parse(listaSalva);
+      const listaSincronizada = [];
+
+      for (const documento of listaPendentes) {
+        const response = await fetch("http://192.168.0.29:3000/api/v1/criar/rdos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(documento),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`RDO/RDS ${documento.numero} sincronizado como ${result.numero}`);
+        } else {
+          listaSincronizada.push(documento); // Mantém no storage se falhar
+        }
+      }
+
+      if (listaSincronizada.length > 0) {
+        await AsyncStorage.setItem("@rdo_rds_pendentes", JSON.stringify(listaSincronizada));
+      } else {
+        await AsyncStorage.removeItem("@rdo_rds_pendentes");
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar:", error);
+    }
   };
 
   const onFechar = () => {
@@ -153,19 +199,28 @@ export default function NovaRDOSScreen() {
 
   const gerarNumeroProvisorio = (tipo: string) => {
     const ano = new Date().getFullYear();
-    const randomId = Math.floor(Math.random() * 10000); // Número aleatório provisório
+    const randomId = Math.floor(Math.random() * 10000);
     return `${randomId}/${ano}`;
+  };
+
+  const gerarIdProvisorio = () => {
+    const randomId = uuid.v4(); // Gera um UUID v4
+    console.log("rd",randomId)
+    console.log(uuid.v4())
+    return randomId;
   };
 
   const salvarOffline = async (data: FormData) => {
     try {
       const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
       const listaAtualizada = listaSalva ? JSON.parse(listaSalva) : [];
-  
-      listaAtualizada.push(data);
+        listaAtualizada.push(data);
   
       await AsyncStorage.setItem("@rdo_rds_pendentes", JSON.stringify(listaAtualizada));
-      Alert.alert("Offline", `Salvo como ${data.numero} e será sincronizado depois.`);
+      setDocId(data.id? data.id:  "")
+      Alert.alert("Offline", `Salvo como ${data.numero} e será sincronizado depois.`, [
+        { text: "OK", onPress: () => navigation.navigate("DetalhesRDO", { id: data.id? data.id:"" }) }
+      ]);
     } catch (error) {
       console.error("Erro ao salvar localmente:", error);
     }
@@ -216,12 +271,12 @@ export default function NovaRDOSScreen() {
     }
   };
 
-
   return (
    <ScrollView style={{ flex: 1 }} nestedScrollEnabled={true}>
     <View style={globalStyles.container}>
-    
-      {salvo? (
+
+      {/* Cabeçalho */}             
+      {status !== ""? (
       <View style={{ padding: 10, borderBottomWidth: 1, marginBottom: 10 }}>
         <Text style={{ fontWeight: "bold", fontSize: 18 }}>{tipo}: {numeroGerado}</Text>
         <Text>Data de referência: {selectedDate.toLocaleDateString()}</Text>
@@ -229,19 +284,20 @@ export default function NovaRDOSScreen() {
       </View>
         ):(<Text style={globalStyles.title}>Nova RDOS</Text>)}
 
+      {/* Selecionar Encarregado */}             
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Encarregado:</Text>
         <Controller
           control={control}
           name="encarregadoId"
-          disabled={salvo}
+          disabled={status!==""}
           render={({ field }) => (
             <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
               <Picker.Item label="Selecione um encarregado" value="" />
               {encarregados.map((encarregado, index) => (
               <Picker.Item
                 key={index}
-                label={encarregado.nome}  // Assume que o campo correto é numerodocontrato
-                value={encarregado.id}  // Define o valor como numerodocontrato
+                label={encarregado.nome}
+                value={encarregado.id}
               />)
               )}
             </Picker>
@@ -249,11 +305,12 @@ export default function NovaRDOSScreen() {
         />
         {errors.encarregadoId && <Text style={{ color: "red" }}>{errors.encarregadoId.message}</Text>}
 
+      {/* Selecionar Contrato */}             
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Contrato:</Text>
         <Controller
           control={control}
           name="empresaContratoId"
-          disabled={salvo}
+          disabled={status!==""}
           render={({ field }) => (
             <Picker selectedValue={field.value} onValueChange={field.onChange} enabled={!salvo}>
               <Picker.Item label="Selecione um contrato" value="" />
@@ -269,6 +326,7 @@ export default function NovaRDOSScreen() {
         />
         {errors.empresaContratoId && <Text style={{ color: "red" }}>{errors.empresaContratoId.message}</Text>}
 
+      {/* Selecionar Data de referência */}             
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Data:</Text>
           {Platform.OS === "web" && !salvo ? (
             <TextInput
@@ -287,7 +345,6 @@ export default function NovaRDOSScreen() {
                 <Text style={{ borderWidth: 1, padding: 8 }}>{selectedDate.toLocaleDateString()}</Text>
               </TouchableOpacity>
             )}
-          
         {showDatePicker && Platform.OS !== "web" && !salvo && (
             <DateTimePicker
               value={selectedDate}
@@ -303,7 +360,8 @@ export default function NovaRDOSScreen() {
             />            
           )}
         {errors.data && <Text style={{ color: "red" }}>{errors.data.message}</Text>}
-    
+
+      {/* Selecionar RDS ou RDO */}    
       <Text style={{paddingVertical:12, fontWeight:"bold"}} >Tipo:</Text>
         <View style={{ flexDirection: "row", alignItems: "center", padding:10 }}>
           <TouchableOpacity onPress={() => setTipo("RDO")} disabled={salvo}>
@@ -337,18 +395,17 @@ export default function NovaRDOSScreen() {
           <Text>RDS</Text>
         </View>
 
+
+      {/* Criar */} 
       {status === "" && (<TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} 
         onPress={() => {
-          setStatus("Aberto"); // Atualiza o estado antes de chamar o onSubmit
           handleSubmit(onSubmit)(); // Chama o onSubmit com a função handleSubmit
-                      }} disabled={salvo}>
+          }}
+        disabled={salvo}>
         <Text style={globalStyles.buttonText}>Criar</Text> 
       </TouchableOpacity>)}     
 
-      {status !== "" && 
-        <SalvoOpcoes id={docId} status={status}/>
-      }
-
+      {/* Fechar Editar Excluir */} 
       {salvo && (
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
         <TouchableOpacity
@@ -369,6 +426,7 @@ export default function NovaRDOSScreen() {
       </View>
       )}
 
+      {/* Salvar (após Editar) */} 
       {status ==="Aberto" && !salvo && (
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
         <TouchableOpacity

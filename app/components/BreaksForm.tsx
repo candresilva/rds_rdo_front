@@ -55,6 +55,8 @@ const BreakModal: React.FC<BreakModalProps> = ({
 
   const [tempStartTime, setTempStartTime] = useState<string>("");
   const [tempEndTime, setTempEndTime] = useState<string>("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  
 
     useEffect(() => {
       if (visible) {
@@ -200,7 +202,8 @@ const BreakModal: React.FC<BreakModalProps> = ({
             <TouchableOpacity
               style={globalStyles.buttonCancel}
               onPress={() => {
-                onClose(); // Chama o onClose
+                setSaveSuccess((prev)=>!prev);
+                onClose();                    // Chama o onClose
                 setTempSelectedBreakId(null); // Limpa o valor de tempSelectedService
               }}
             >

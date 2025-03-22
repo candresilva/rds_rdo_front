@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Alert, Platform, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 import SalvoOpcoes from "../components/SalvoOpcoes";
 import { ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRoute } from "@react-navigation/native";
 
-const STORAGE_KEY = "@rdo_rds_list";
 const API_URL = "http://192.168.0.29:3000";
 
 type FormData = {
+  id?:string;
   encarregadoId: string;
   empresaContratoId: string;
   data: Date;
@@ -28,7 +28,7 @@ type Contrato = {
   numeroDoContrato: string;
 };
 
-type Doc = {
+/* type Doc = {
   id: string;
   data: string;
   numero: string;
@@ -45,8 +45,29 @@ type Doc = {
     atividades: {
       nome: string, dataHoraInicio?:string, dataHoraFim?:string}} | null}>
 };
+ */
 
-export default function NovaRDOSScreen() {
+
+type Doc = {
+  id: string;
+  data: string;
+  numero: string;
+  status: string;
+  tipo: string;
+  encarregado: { nome: string };
+  empresaContrato: { numeroDoContrato: string };
+  servicos: Array<{ servico: { nome: string } }>;
+  maoDeObra: Array<{ maoDeObra: { nome: string }, quantidade?: number }>;
+  motivosDePausa: Array<{ motivoPausa: { nome: string }, dataHoraInicio?: string, dataHoraFim?: string }>;
+  equipamentos: Array<{ equipamento: { nome: string }, quantidade?: number }>;
+  servicosAtividades: Array<{ 
+    servico: string, 
+    atividades: Array<{ nome: string, inicio?: string | null, fim?: string | null }>
+  }>;
+};
+
+
+export default function SingleRDOSScreen() {
 
   const [rdos, setRdos] = useState<Doc | null>(null);
   const [salvo, setSalvo] = useState(false);
@@ -58,16 +79,9 @@ export default function NovaRDOSScreen() {
   const route = useRoute();
   const { id } = (route.params as { id: string }) || { id: "" };
   
-  
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/listar/geral-rdos/${id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("rdo recebido:", data);
-        setRdos(data);
-        setLoading(false);
-      });
-    }, []);
+    fetchData(id)
+    }, [id]);
 
   useEffect(() => {
     carregarDados();
@@ -175,6 +189,42 @@ export default function NovaRDOSScreen() {
     }
   };
 
+  const fetchData = async (id:string) => {
+    try {
+      // Primeiro tenta buscar no AsyncStorage
+      const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
+  
+      if (listaSalva) {
+        const parsedData = JSON.parse(listaSalva);
+        const rdoEncontrado = parsedData.find((item:FormData) => item.id === id);
+  
+        if (rdoEncontrado) {
+          console.log("RDO encontrado no AsyncStorage:", rdoEncontrado);
+          setRdos(rdoEncontrado);
+          setLoading(false);
+          return; // Se encontrado no AsyncStorage, não faz a requisição no backend
+        }
+      }
+  
+      // Se não encontrar no AsyncStorage, faz a requisição ao backend
+      const response = await fetch(`${API_URL}/api/v1/listar/geral-rdos/${id}`);
+      const data = await response.json();
+  
+      if (data && Object.keys(data).length > 0) {
+        console.log("RDO recebido do backend:", data);
+        setRdos(data);
+      } else {
+        console.log("Nenhum RDO encontrado no backend.");
+        setRdos(null); // Se não encontrar no backend, configura um objeto vazio
+      }
+    } catch (error) {
+      console.error("Erro ao buscar os dados:", error);
+      setRdos(null); // Se ocorrer erro, configura um objeto vazio
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
    <ScrollView style={{ flex: 1 }} nestedScrollEnabled={true}>
     <View style={globalStyles.container}>
@@ -189,7 +239,7 @@ export default function NovaRDOSScreen() {
       <Text style={{paddingVertical:10, fontWeight:"bold"}}>Contrato: {rdos?.empresaContrato.numeroDoContrato}</Text>     
 
       {rdos?.status !== "" && 
-        <SalvoOpcoes id={id} status={rdos?.status || "Aberto"}/>
+        <SalvoOpcoes id={id} status={rdos?.status || "Aberto"} />
       }
 
       <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
