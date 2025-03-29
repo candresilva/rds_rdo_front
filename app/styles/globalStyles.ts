@@ -194,4 +194,21 @@ export const globalStyles = StyleSheet.create({
     padding: 5, // Espaço ao redor do ícone
     borderRadius: 10, // Bordas arredondadas
   },
+  headerBackground: {
+    flex: 1,
+    resizeMode: "cover", // Ajusta o tamanho da imagem
+    width: "100%",
+    height: "100%",
+  },
+  headerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: 100, // Ajuste o tamanho do logo
+    height: 50, // Ajuste o tamanho do logo
+    resizeMode: "contain", // Garante que a imagem se ajuste corretamente
+    opacity: 0.5, // Torna a imagem semitransparente como marca d'água
+  },
 });

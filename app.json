@@ -10,13 +10,18 @@
     "newArchEnabled": true,
     "entryPoint": "expo-router/entry.js",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caosilva.rdoRdsFront",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.caosilva.RDO_RDS_FRONT"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +42,20 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "515184e2-d650-4807-b749-2e09d70d0074"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/515184e2-d650-4807-b749-2e09d70d0074"
     }
   }
 }

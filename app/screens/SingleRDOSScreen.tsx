@@ -6,7 +6,8 @@ import { ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRoute } from "@react-navigation/native";
 
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 
 type FormData = {
   id?:string;
@@ -17,36 +18,6 @@ type FormData = {
   numero?: string;
   status?:string;
 };
-
-type Encarregado = {
-  id: string;
-  nome: string;
-};
-
-type Contrato = {
-  id: string;
-  numeroDoContrato: string;
-};
-
-/* type Doc = {
-  id: string;
-  data: string;
-  numero: string;
-  status: string;
-  tipo: string;
-  encarregado: { nome: string } 
-  empresaContrato: { numeroDoContrato: string }
-  servicos: Array<{ servico: { nome: string } | null }>;
-  maoDeObra: Array<{maoDeObra:{nome: string, quantidade?: number} | null}>
-  motivosDePausa: Array<{motivosDePausa:
-    {nome: string, dataHoraInicio?: string, dataHoraFim?:string} | null}>
-  equipamentos: Array<{equipamentos:{nome: string, quantidade?: number} | null}>
-  servicosAtividades: Array<{servicos: {
-    atividades: {
-      nome: string, dataHoraInicio?:string, dataHoraFim?:string}} | null}>
-};
- */
-
 
 type Doc = {
   id: string;
@@ -66,14 +37,11 @@ type Doc = {
   }>;
 };
 
-
 export default function SingleRDOSScreen() {
 
   const [rdos, setRdos] = useState<Doc | null>(null);
   const [salvo, setSalvo] = useState(false);
   const [status, setStatus] = useState<"Aberto" | "Encerrado" | "Excluído" | "">(""); 
-  const [encarregados, setEncarregados] = useState<Encarregado[]>([]);
-  const [contratos, setContratos] = useState<Contrato[]>([]);
   const [loading, setLoading] = useState(true);
   const [docId, setDocId] = useState<string | "">("");  
   const route = useRoute();
@@ -82,53 +50,6 @@ export default function SingleRDOSScreen() {
   useEffect(() => {
     fetchData(id)
     }, [id]);
-
-  useEffect(() => {
-    carregarDados();
-  }, []);
-
-  const onFechar = () => {
-    setStatus("Encerrado");
-  };
-  
-  const onExcluir = () => {
-    setStatus("Excluído");
-  };
-
-  const onEditar = () => {
-    setSalvo(false);
-  };
-
-  const handleSave = async () => {
-    try {
-      // Monta o objeto com os dados do formulário
-      //const dadosParaSalvar = {
-        //numeroRDO: FormData.numeroRDO,
-        //dataCriacao: selectedDate,
-        //status: "Aberto",
-        // Adicione mais campos conforme necessário
-      //};
-  
-      // Enviar os dados para o banco (substitua pela sua API real)
-      //const response = await fetch("URL_DA_API/salvar", {
-        //method: "POST",
-        //headers: {
-          //"Content-Type": "application/json",
-        //},
-        //body: JSON.stringify(dadosParaSalvar),
-      //});
-  
-      //if (!response.ok) throw new Error("Erro ao salvar no banco");
-  
-      // Se deu certo, atualizar o estado para indicar que foi salvo
-      //setSalvo(true);
-      //alert("Salvo com sucesso!");
-  
-    } catch (error) {
-      console.error("Erro ao salvar:", error);
-      alert("Erro ao salvar os dados");
-    }
-  };
 
   const salvarOffline = async (data: FormData) => {
     try {
@@ -141,51 +62,6 @@ export default function SingleRDOSScreen() {
       Alert.alert("Offline", `Salvo como ${data.numero} e será sincronizado depois.`);
     } catch (error) {
       console.error("Erro ao salvar localmente:", error);
-    }
-  };
-
-  const carregarDados = async () => {
-    console.log(`${API_URL}/api/v1/listar/encarregados`);
-    console.log(`${API_URL}/api/v1/listar/contratos`);
-    try {
-      const [resEnc, resCont] = await Promise.all([
-        fetch(`${API_URL}/api/v1/listar/encarregados`),
-        fetch(`${API_URL}/api/v1/listar/contratos`),
-      ]);
-      console.log("resEnc",resEnc);
-  
-      if (!resEnc.ok || !resCont.ok) {
-        throw new Error("Falha ao obter dados do servidor");
-      }
-  
-      const [encarregados, contratos] = await Promise.all([
-        resEnc.json(),
-        resCont.json(),
-      ]);
-  
-      setEncarregados(encarregados);
-      setContratos(contratos);
-      console.log("segue", contratos);
-  
-      // Salva no AsyncStorage para uso offline
-      await AsyncStorage.setItem("encarregados", JSON.stringify(encarregados));
-      await AsyncStorage.setItem("contratos", JSON.stringify(contratos));
-    } catch (error) {
-      console.log("Erro ao carregar dados, tentando offline", error);
-  
-      // Se falhar, tenta carregar do AsyncStorage
-      const encLocal = await AsyncStorage.getItem("encarregados");
-      const contLocal = await AsyncStorage.getItem("contratos");
-  
-      if (encLocal && contLocal) {
-        setEncarregados(JSON.parse(encLocal));
-        setContratos(JSON.parse(contLocal));
-        Alert.alert("Modo offline", "Os dados podem estar desatualizados.");
-      } else {
-        Alert.alert("Erro", "Não foi possível carregar os dados.");
-      }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -211,7 +87,6 @@ export default function SingleRDOSScreen() {
       const data = await response.json();
   
       if (data && Object.keys(data).length > 0) {
-        console.log("RDO recebido do backend:", data);
         setRdos(data);
       } else {
         console.log("Nenhum RDO encontrado no backend.");
@@ -241,34 +116,6 @@ export default function SingleRDOSScreen() {
       {rdos?.status !== "" && 
         <SalvoOpcoes id={id} status={rdos?.status || "Aberto"} />
       }
-
-      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "green" }]}
-          onPress={onFechar}
-        >
-          <Text style={globalStyles.buttonText}>Fechar</Text>
-        </TouchableOpacity>
-              <TouchableOpacity style={[globalStyles.button, { backgroundColor: "orange" }]} onPress={onEditar}>
-                <Text style={globalStyles.buttonText}>Editar</Text>
-              </TouchableOpacity>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "red" }]}
-          onPress={onExcluir}
-        >
-          <Text style={globalStyles.buttonText}>Excluir</Text>
-        </TouchableOpacity>
-      </View>
-
-      {status ==="Aberto" && !salvo && (
-      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "green" }]}
-          onPress={handleSave}
-        >
-          <Text style={globalStyles.buttonText}>Salvar</Text>
-        </TouchableOpacity>
-      </View>)}
 
     </View>
     </ScrollView>

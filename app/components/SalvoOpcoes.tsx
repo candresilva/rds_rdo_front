@@ -5,13 +5,30 @@ import ServiceActivityModal from "./ServiceActivityForm"; // Importando o modal
 import WorkforceModal from "./WorkforceForm";
 import EquipmentModal from "./EquipmentForm";
 import BreakModal from "./BreaksForm";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
+const KEY_BREAK="@pausas_pendentes_"
+const KEY_WORKFORCE="@maosDeObra_pendentes_"
+const KEY_EQUIPMENT="@equipamentos_pendentes_"
+const KEY_SERVICE="@servicos_pendentes_"
 
 type Workforce_Equipment = {
   id: string;
   nome: string;
   quantidade?:number;
+};
+
+type Service = {
+  servicoId: string;
+  nome: string;
+  atividades?:{
+    atividadeId:string,
+    nome: string,
+    dataHoraInicio?: string,
+    dataHoraFim?: string
+  }[]
 };
 
 type DocWorkforce = {
@@ -70,9 +87,9 @@ const SalvoOpcoes: React.FC<SalvoOpcoesProps> = ({id,status}) => {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
 // ---------------- Estados de serviços --------------------------  
-  const [services, setServices] = useState<
-  { service: string; activities: { name: string; startTime?: string; endTime?: string }[] }[]
-  >([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [DocServices, setDocServices] = useState<Service[]>([]);
+  const [currentServices, setCurrentServices] = useState<Service[]>([]);
 
 // ---------------- Estados de mão de obra --------------------------  
   const [workforces, setWorkforces] = useState<Workforce_Equipment[]>([]);
@@ -88,6 +105,125 @@ const SalvoOpcoes: React.FC<SalvoOpcoesProps> = ({id,status}) => {
   const [breaks, setBreaks] = useState<Break[]>([]);
   const [DocBreaks, setDocBreaks] = useState<DocBreak[]>([]);
   const [currentBreaks, setCurrentBreaks] = useState<Break[]>([]);
+
+// ---------------- Efeitos de serviço --------------------------  
+useEffect(() => {
+  if (status !== "" && id) {
+    fetchServices();
+     }
+}, [status, id]);
+
+useEffect(() => {
+  if ((status !== "" && id) || saveSuccess || (serviceModalVisible===false)) {
+    fetchDocServices();
+    console.log("curser", DocServices)
+     }
+}, [status, saveSuccess, id, serviceModalVisible]); 
+
+/* useEffect(() => {
+    if ((DocServices && DocServices.length > 0) || (serviceModalVisible===false)) {
+      getInitialServices(DocServices);
+      console.log("cf",currentServices);
+    }
+  }, [DocServices, serviceModalVisible]); */
+
+// ------------- Funções de Serviço ----------------------- 
+const fetchServices = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/associar/servicos/atividades/nome`);
+    const data = await response.json();
+
+    const dados = data.map((d: Service)=> ({
+      servicoId: d.servicoId,
+      nome: d.nome,
+      atividades: Array.isArray(d.atividades) ? d.atividades : []
+    }));
+    setServices(dados);
+  } catch (error) {
+    console.error("Erro ao buscar serviços:", error);
+  }
+};
+
+const fetchDocServices = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos_atividades/`);
+    const data = await response.json();
+    console.log("curser1", data)
+
+    const dados = data.map((d: Service)=> ({
+      servicoId: d.servicoId,
+      nome: d.nome,
+      atividades: Array.isArray(d.atividades) ? d.atividades : []
+    }));
+    console.log("curser2", dados)
+
+    setDocServices(dados);
+  } catch (error) {
+    console.error("Erro ao buscar associação de serviços:", error);
+  }
+};
+
+/* const getInitialServices = (myServices: Service[]) => {
+  const newServices: Service[] = myServices
+    .map(({ maoDeObraId, quantidade }) => {
+      const workforce = workforces.find(w => w.id === maoDeObraId);
+      if (!workforce) return null; // Se não encontrar, retorna null
+      return {
+        id: maoDeObraId,
+        nome: workforce.nome,
+        quantidade, // Mantém opcional
+      } as Workforce_Equipment; // Type assertion para evitar erro do TS
+    })
+    .filter((w): w is Workforce_Equipment => w !== null); // Type guard para eliminar nulls
+
+  setCurrentWorkforces(newWorkforces);
+}; */
+
+const saveServices = async (selectedServices: Service[]) => {
+  const dadosDelete = findRemovedRecords(DocServices,selectedServices, "servicoId");
+  const dadosCreate = findNewRecords(DocServices,selectedServices, "servicoId");
+  console.log("dc",dadosCreate);
+  try {
+    await findAndProcessChangedActivities(DocServices, selectedServices);
+    await Promise.all([
+      ...dadosCreate.map(async (service) => {
+        console.log("sa", JSON.stringify({atividades: service.atividades}));
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${service.servicoId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({atividades: service.atividades}),
+          });
+          if (!res.ok) throw new Error(`Erro ao associar serviço ${service.servicoId}`);
+          console.log(`Serviço ${service.servicoId} associado com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao criar serviço ${service.servicoId}. Salvando offline...`);
+          await salvarOffline("create", KEY_SERVICE, [service]); // Salva o dado offline
+        }
+      }),
+      ...dadosDelete.map(async (service) => {
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${service.servicoId}/excluir`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (!res.ok) throw new Error(`Erro ao excluir serviço ${service.servicoId}`);
+          console.log(`Serviço ${service.servicoId} excluído com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao excluir serviço ${service.servicoId}. Salvando offline...`);
+          await salvarOffline("delete",KEY_SERVICE, [service]); // Salva o dado offline
+        }
+      }),
+    ]);
+    console.log("Todas as operações concluídas com sucesso!");
+    console.log("testepre",saveSuccess)
+    setSaveSuccess((prev)=>!prev);
+    console.log("testepos",!saveSuccess)
+    console.log("fim",saveSuccess)
+  } catch (error) {
+    console.error("Erro ao salvar serviço:", error);
+  }
+};  
 
 // ---------------- Efeitos de mão de obra --------------------------  
 useEffect(() => {
@@ -105,7 +241,6 @@ useEffect(() => {
 useEffect(() => {
     if ((DocWorkforces && DocWorkforces.length > 0) || (workforceModalVisible===false)) {
       getInitialWorkforces(DocWorkforces);
-      console.log("cf",currentWorkforces);
     }
   }, [DocWorkforces, workforceModalVisible]);
 
@@ -153,34 +288,50 @@ const getInitialWorkforces = (myWorkforces: DocWorkforce[]) => {
 const saveWorkforces = async (selectedWorkforces: Workforce_Equipment[]) => {
   const dadosUpdate = findChangedRecords(currentWorkforces, selectedWorkforces);
   console.log("dup",dadosUpdate)
-  const dadosDelete = findRemovedRecords(currentWorkforces,selectedWorkforces);
-  const dadosCreate = findNewRecords(currentWorkforces,selectedWorkforces)
+  const dadosDelete = findRemovedRecords(currentWorkforces,selectedWorkforces, "id");
+  const dadosCreate = findNewRecords(currentWorkforces,selectedWorkforces, "id")
   try {
     await Promise.all([
       ...dadosCreate.map(async (workforce) => {
-        const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantidade: workforce.quantidade }),
-        });
-        if (!res.ok) throw new Error(`Erro ao associar mão de obra ${workforce.id}`);
-        console.log(`Workforce ${workforce.id} associada com sucesso!`);
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quantidade: workforce.quantidade }),
+          });
+          if (!res.ok) throw new Error(`Erro ao associar mão de obra ${workforce.id}`);
+          console.log(`Mão de obra ${workforce.id} associada com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao criar mão de obra ${workforce.id}. Salvando offline...`);
+          await salvarOffline("create", KEY_WORKFORCE, [workforce]); // Salva o dado offline
+        }
       }),
       ...dadosUpdate.map(async (workforce) => {
-        console.log("qtdup",workforce.quantidade)
-        await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}/editar`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantidade: workforce.quantidade }),
-        });
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}/editar`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quantidade: workforce.quantidade }),
+          });
+          if (!res.ok) throw new Error(`Erro ao editar mão de obra ${workforce.id}`);
+          console.log(`Mão de obra ${workforce.id} editada com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao editar mão de obra ${workforce.id}. Salvando offline...`);
+          await salvarOffline("update",KEY_WORKFORCE, [workforce]); // Salva o dado offline
+        }
       }),
       ...dadosDelete.map(async (workforce) => {
-        const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}/excluir`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (!res.ok) throw new Error(`Erro ao excluir workforce ${workforce.id}`);
-        console.log(`Workforce ${workforce.id} excluído com sucesso!`);
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/maos-de-obra/${workforce.id}/excluir`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (!res.ok) throw new Error(`Erro ao excluir mão de obra ${workforce.id}`);
+          console.log(`Mão de obra ${workforce.id} excluída com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao excluir mão de obra ${workforce.id}. Salvando offline...`);
+          await salvarOffline("delete",KEY_WORKFORCE, [workforce]); // Salva o dado offline
+        }
       }),
     ]);
     console.log("Todas as operações concluídas com sucesso!");
@@ -206,7 +357,6 @@ useEffect(() => {
 useEffect(() => {
     if ((DocEquipments && DocEquipments.length > 0) || (equipmentModalVisible===false)) {
       getInitialEquipments(DocEquipments);
-      console.log("ce",currentEquipments);
     }
   }, [DocEquipments, equipmentModalVisible]);
 
@@ -254,36 +404,52 @@ useEffect(() => {
   const saveEquipments = async (selectedEquipments: Workforce_Equipment[]) => {
     const dadosUpdate = findChangedRecords(currentEquipments, selectedEquipments);
     console.log("dup",dadosUpdate)
-    const dadosDelete = findRemovedRecords(currentEquipments, selectedEquipments);
+    const dadosDelete = findRemovedRecords(currentEquipments, selectedEquipments, "id");
     console.log("dd",dadosDelete)
-    const dadosCreate = findNewRecords(currentEquipments, selectedEquipments)
+    const dadosCreate = findNewRecords(currentEquipments, selectedEquipments, "id")
     console.log("dc",dadosCreate)
     try {
       await Promise.all([
         ...dadosCreate.map(async (equipment) => {
-          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ quantidade: equipment.quantidade }),
-          });
-          if (!res.ok) throw new Error(`Erro ao associar equipamento ${equipment.id}`);
-          console.log(`Equipment ${equipment.id} associada com sucesso!`);
+          try{
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ quantidade: equipment.quantidade }),
+            });
+            if (!res.ok) throw new Error(`Erro ao associar equipamento ${equipment.id}`);
+            console.log(`Equipmento ${equipment.id} associado com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao criar equipamento ${equipment.id}. Salvando offline...`);
+            await salvarOffline("create", KEY_EQUIPMENT,[equipment]); // Salva o dado offline
+          }
         }),
         ...dadosUpdate.map(async (equipment) => {
-          console.log("qtdup",equipment.quantidade)
-          await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}/editar`, {
+          try {
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}/editar`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ quantidade: equipment.quantidade }),
-          });
+              });
+            if (!res.ok) throw new Error(`Erro ao editar equipamento ${equipment.id}`);
+            console.log(`Equipamento ${equipment.id} editado com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao editar equipamento ${equipment.id}. Salvando offline...`);
+            await salvarOffline("update", KEY_EQUIPMENT, [equipment]); // Salva o dado offline
+          }
         }),
         ...dadosDelete.map(async (equipment) => {
-          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}/excluir`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) throw new Error(`Erro ao excluir equipamento ${equipment.id}`);
-          console.log(`Equipamento ${equipment.id} excluído com sucesso!`);
+          try{
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/equipamentos/${equipment.id}/excluir`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            });
+            if (!res.ok) throw new Error(`Erro ao excluir equipamento ${equipment.id}`);
+            console.log(`Equipamento ${equipment.id} excluído com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao excluir equipamento ${equipment.id}. Salvando offline...`);
+            await salvarOffline("delete", KEY_EQUIPMENT, [equipment]); // Salva o dado offline
+          }
         }),
       ]);
       console.log("Todas as operações concluídas com sucesso!");
@@ -309,7 +475,6 @@ useEffect(() => {
   useEffect(() => {
   if ((DocBreaks && DocBreaks.length > 0) || (abreakModalVisible===false)) {
     getInitialBreaks(DocBreaks);
-    console.log("cb",currentBreaks);
   }
 }, [DocBreaks, abreakModalVisible]);
 
@@ -332,14 +497,11 @@ useEffect(() => {
     try {
       const response = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/`);
       const data = await response.json();
-      console.log("od",data)
-
       const formattedData = data.map((item: any) => ({
         ...item,
-        dataHoraInicio: new Date(item.dataHoraInicio).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        dataHoraInicio: new Date(item.dataHoraInicio).toTimeString()
+        .split(" ")[0] // Pega apenas a parte "HH:MM:SS"
+        .slice(0, 5),
         dataHoraFim: new Date(item.dataHoraFim).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -372,26 +534,32 @@ useEffect(() => {
   const saveBreaks = async (selectedBreaks: Break[]) => {
     const dadosUpdate = findChangedRecords(currentBreaks, selectedBreaks);
     console.log("dup",dadosUpdate)
-    const dadosDelete = findRemovedRecords(currentBreaks, selectedBreaks);
+    const dadosDelete = findRemovedRecords(currentBreaks, selectedBreaks, "id");
     console.log("dd",dadosDelete)
-    const dadosCreate = findNewRecords(currentBreaks, selectedBreaks)
+    const dadosCreate = findNewRecords(currentBreaks, selectedBreaks, "id")
     console.log("dc",dadosCreate)
     try {
       await Promise.all([
         ...dadosCreate.map(async (abreak) => {
-          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-              dataHoraInicio: abreak.dataHoraInicio,
-              dataHoraFim: abreak.dataHoraFim
-              }),
-          });
-          if (!res.ok) throw new Error(`Erro ao associar motivo de pausa ${abreak.id}`);
-          console.log(`Pausa ${abreak.id} associada com sucesso!`);
-        }),
+          try {
+              const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ 
+                  dataHoraInicio: abreak.dataHoraInicio,
+                  dataHoraFim: abreak.dataHoraFim
+                  }),
+              });
+              if (!res.ok) throw new Error(`Erro ao associar motivo de pausa ${abreak.id}`);
+              console.log(`Pausa ${abreak.id} associada com sucesso!`);
+            } catch (error) {
+              console.warn(`Erro ao criar pausa ${abreak.id}. Salvando offline...`);
+              await salvarOffline("create", KEY_BREAK,[abreak]); // Salva o dado offline
+            }
+    }),
         ...dadosUpdate.map(async (abreak) => {
-          await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}/editar`, {
+          try {
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}/editar`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
@@ -399,14 +567,25 @@ useEffect(() => {
               dataHoraFim: abreak.dataHoraFim
               }),
           });
+            if (!res.ok) throw new Error(`Erro ao editar motivo de pausa ${abreak.id}`);
+            console.log(`Pausa ${abreak.id} editada com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao editar pausa ${abreak.id}. Salvando offline...`);
+            await salvarOffline("update", KEY_BREAK, [abreak]); // Salva o dado offline
+          }
         }),
         ...dadosDelete.map(async (abreak) => {
-          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}/excluir`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) throw new Error(`Erro ao excluir pausa ${abreak.id}`);
-          console.log(`Pausa ${abreak.id} excluída com sucesso!`);
+          try {
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/motivos-de-pausa/${abreak.id}/excluir`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            });
+            if (!res.ok) throw new Error(`Erro ao excluir pausa ${abreak.id}`);
+            console.log(`Pausa ${abreak.id} excluída com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao excluir pausa ${abreak.id}. Salvando offline...`);
+            await salvarOffline("delete", KEY_BREAK, [abreak]); // Salva o dado offline
+          }
         }),
       ]);
       console.log("Todas as operações concluídas com sucesso!");
@@ -415,15 +594,15 @@ useEffect(() => {
       console.error("Erro ao salvar pausa:", error);
     }
   };
-  
-  // Função para encontrar registros que sumiram (mão de obra e equipamentos)
-  const findRemovedRecords = <T extends { id: string }>(inicial: T[], atual: T[]): T[] =>
-    inicial.filter(aItem => !atual.some(bItem => bItem.id === aItem.id));
+ 
+  // Função para encontrar registros que sumiram
+  const findRemovedRecords = <T,K extends keyof T>(inicial: T[], atual: T[], key:K): T[] =>
+    inicial.filter(aItem => !atual.some(bItem => bItem[key] === aItem[key]));
   // Função para encontrar registros novos
-  const findNewRecords = <T extends { id: string }>(inicial: T[], atual: T[]): T[] =>
-    atual.filter(bItem => !inicial.some(aItem => aItem.id === bItem.id));
-  // Função para encontrar registros que mudaram e quais atributos foram alterados
-    const findChangedRecords = <T extends { id: string; nome: string } & 
+  const findNewRecords = <T,K extends keyof T>(inicial: T[], atual: T[], key:K): T[] =>
+    atual.filter(bItem => !inicial.some(aItem => aItem[key] === bItem[key]));
+  // Função para encontrar atividades que mudaram e quais atributos foram alterados
+  const findChangedRecords = <T extends { id: string; nome: string } & 
           Partial<{ quantidade: number; dataHoraInicio: string; dataHoraFim: string }>>(
             inicial: T[], 
             atual: T[]
@@ -438,32 +617,213 @@ useEffect(() => {
         );
       });
 
+/*   const findAndProcessChangedActivities = async (inicial: Service[], atual: Service[]) => {
+    for (const bItem of atual) {
+      const aItem = inicial.find(a => a.servicoId === bItem.servicoId);
+  
+      if (!aItem) continue; // Se o serviço não existia antes, não faz nada
+  
+      const atividadesIniciais = aItem.atividades || [];
+      const atividadesAtuais = bItem.atividades || [];
+  
+      // Encontrar atividades **acrescentadas** no serviço
+      const atividadesAcrescentadas = atividadesAtuais.filter(
+        atvAtual => !atividadesIniciais.some(atvAntiga => atvAntiga.atividadeId === atvAtual.atividadeId)
+      );
+
+      for (const atividade of atividadesAcrescentadas) {
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${aItem.servicoId}/editar`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              atividadeId: atividade.atividadeId,
+              dataHoraInicio: atividade.dataHoraInicio,
+              dataHoraFim: atividade.dataHoraFim}
+          ), // Envia uma atividade por vez
+          });
+      
+          if (!res.ok) {
+            console.error(`Erro ao enviar atividade ${atividade.atividadeId}:`, await res.text());
+          }
+        } catch (error) {
+          console.error(`Erro ao tentar enviar atividade ${atividade.atividadeId}:`, error);
+        }
+      }
+
+      // Encontrar atividades **removidas** do serviço
+      const atividadesRemovidas = atividadesIniciais.filter(
+        atvAntiga => !atividadesAtuais.some(atvAtual => atvAtual.atividadeId === atvAntiga.atividadeId)
+      );
+
+      for (const atividade of atividadesRemovidas) {
+        try {
+          const res = await fetch(`${API_URL}/v1/associar/rdos/${id}/atividades/${atividade.atividadeId}/excluir/${aItem.servicoId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+          });
+      
+          if (!res.ok) {
+            console.error(`Erro ao excluir atividade ${atividade.atividadeId}:`, await res.text());
+          }
+        } catch (error) {
+          console.error(`Erro ao tentar excluir atividade ${atividade.atividadeId}:`, error);
+        }
+      }
+
+      // Encontrar atividades que **tiveram alteração** na data de início/fim
+      const atividadesAlteradas = atividadesAtuais.filter(atvAtual => {
+        const atvAntiga = atividadesIniciais.find(atv => atv.atividadeId === atvAtual.atividadeId);
+        
+        return atvAntiga &&
+          (atvAntiga.dataHoraInicio !== atvAtual.dataHoraInicio || 
+            atvAntiga.dataHoraFim !== atvAtual.dataHoraFim);
+      });
+
+      for (const atividade of atividadesAlteradas) {
+        try {
+          const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${aItem.servicoId}/editar`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(({
+              atividadeId: atividade.atividadeId,
+              dataHoraInicio: atividade.dataHoraInicio,
+              dataHoraFim: atividade.dataHoraFim}
+          )),
+          });
+          if (!res.ok) throw new Error(`Erro ao editar serviço ${aItem.servicoId}`);
+          console.log(`Serviço ${aItem.servicoId} editado com sucesso!`);
+        } catch (error) {
+          console.warn(`Erro ao editar serviço ${aItem.servicoId}`);
+        }
+      }
+    };
+  }; */
+
+  const findAndProcessChangedActivities = async (inicial: Service[], atual: Service[]) => {
+    await Promise.all(
+      atual.map(async (bItem) => {
+        const aItem = inicial.find(a => a.servicoId === bItem.servicoId);
+        if (!aItem) return; // Se o serviço não existia antes, não faz nada
+  
+        const atividadesIniciais = aItem.atividades || [];
+        const atividadesAtuais = bItem.atividades || [];
+  
+        // 📌 Atividades acrescentadas
+        const atividadesAcrescentadas = atividadesAtuais.filter(
+          atvAtual => !atividadesIniciais.some(atvAntiga => atvAntiga.atividadeId === atvAtual.atividadeId)
+        );
+  
+        const promisesAcrescentadas = atividadesAcrescentadas.map(async (atividade) => {
+          try {
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${aItem.servicoId}/editar`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                atividadeId: atividade.atividadeId,
+                dataHoraInicio: atividade.dataHoraInicio,
+                dataHoraFim: atividade.dataHoraFim
+              })
+            });
+  
+            if (!res.ok) throw new Error(`Erro ao enviar atividade ${atividade.atividadeId}`);
+          } catch (error) {
+            console.error(`Erro ao enviar atividade ${atividade.atividadeId}:`, error);
+          }
+        });
+  
+        // 📌 Atividades removidas
+        const atividadesRemovidas = atividadesIniciais.filter(
+          atvAntiga => !atividadesAtuais.some(atvAtual => atvAtual.atividadeId === atvAntiga.atividadeId)
+        );
+  
+        const promisesRemovidas = atividadesRemovidas.map(async (atividade) => {
+          try {
+            const res = await fetch(`${API_URL}/v1/associar/rdos/${id}/atividades/${atividade.atividadeId}/excluir/${aItem.servicoId}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            });
+  
+            if (!res.ok) throw new Error(`Erro ao excluir atividade ${atividade.atividadeId}`);
+          } catch (error) {
+            console.error(`Erro ao excluir atividade ${atividade.atividadeId}:`, error);
+          }
+        });
+  
+        // 📌 Atividades alteradas
+        const atividadesAlteradas = atividadesAtuais.filter(atvAtual => {
+          const atvAntiga = atividadesIniciais.find(atv => atv.atividadeId === atvAtual.atividadeId);
+          return atvAntiga &&
+            (atvAntiga.dataHoraInicio !== atvAtual.dataHoraInicio || 
+             atvAntiga.dataHoraFim !== atvAtual.dataHoraFim);
+        });
+  
+        const promisesAlteradas = atividadesAlteradas.map(async (atividade) => {
+          try {
+            const res = await fetch(`${API_URL}/api/v1/associar/rdos/${id}/servicos/${aItem.servicoId}/editar`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                atividadeId: atividade.atividadeId,
+                dataHoraInicio: atividade.dataHoraInicio,
+                dataHoraFim: atividade.dataHoraFim
+              })
+            });
+  
+            if (!res.ok) throw new Error(`Erro ao editar serviço ${aItem.servicoId}`);
+            console.log(`Serviço ${aItem.servicoId} editado com sucesso!`);
+          } catch (error) {
+            console.warn(`Erro ao editar serviço ${aItem.servicoId}:`, error);
+          }
+        });
+  
+        // ⚡ Executa todas as requisições em paralelo
+        await Promise.all([...promisesAcrescentadas, ...promisesRemovidas, ...promisesAlteradas]);
+      })
+    );
+  };
+  
+  // Função para salvar offline
+    const salvarOffline = async (tipo: string, chave:string, dados: any[]) => {
+      try {
+        const chaveCompleta = `${chave}${tipo}`;
+        const objetosPendentes = await AsyncStorage.getItem(chaveCompleta);
+        const objetosAtuais = objetosPendentes ? JSON.parse(objetosPendentes) : [];
+        await AsyncStorage.setItem(chave, JSON.stringify([...objetosAtuais, ...dados]));
+        console.log(`✅ Dados salvos offline (${tipo}):`, dados);
+      } catch (error) {
+        console.error(`❌ Erro ao salvar pausas offline (${tipo}):`, error);
+      }
+    };
+     
   return (
     <View style={{ padding: 5, borderTopWidth: 1, marginTop: 10 }}>
-            {/* Seção de Serviços e Atividades */}
-      {services.length > 0 && (
+      
+      {/* Seção de Serviços e Atividades */}
+      {DocServices.length > 0 && (
         <View style={{ padding: 10, borderWidth: 1, borderRadius: 5, marginTop: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20 }}>
             <Text style={globalStyles.sectionTitle}>Serviços e Atividades</Text>
             <TouchableOpacity style={globalStyles.editButton} onPress={() => {
+              console.log("antes",saveSuccess)
               setSaveSuccess(false);
+              console.log("saida",saveSuccess)
               setServiceModalVisible(true)}}>
               <Text style={globalStyles.editButtonText}>✎</Text>
             </TouchableOpacity>
-
             </View>
-          {services.map(({ service, activities }, index) => (
+          {DocServices.map(({ nome, atividades }, index) => (
             <View key={index} style={globalStyles.serviceContainer}>
-              <Text style={globalStyles.serviceText}>{service}</Text>
-              {activities.length > 0 && (
+              <Text style={globalStyles.serviceText}>{nome}</Text>
+              {atividades && atividades.length > 0 && (
                 <View style={globalStyles.activityList}>
-                  {activities.map((activity, i) => (
+                  {atividades.map((activity, i) => (
                     <View>
                       <Text key={i} style={globalStyles.activityText}>
-                      - {activity.name}
+                      - {activity.nome}
                       </Text>
                       <Text key={`A${i}`} style={globalStyles.activityText}>
-                      - Início às {activity.startTime|| "hh:mm"} | Fim às {activity.endTime|| "hh:mm"}
+                      - Início às {activity.dataHoraInicio|| "hh:mm"} | Fim às {activity.dataHoraFim|| "hh:mm"}
                       </Text>
                     </View>
                   ))}
@@ -541,7 +901,7 @@ useEffect(() => {
           <Text style={{ marginTop: 20, fontWeight: "bold" }}>Opções:</Text>
       </View>
       
-      {services.length<=0 && (
+      {DocServices.length<=0 && (
         <TouchableOpacity style={globalStyles.button} onPress={() => {
           setSaveSuccess(false);
           setServiceModalVisible(true)}}>
@@ -549,10 +909,11 @@ useEffect(() => {
         </TouchableOpacity>)}
         <ServiceActivityModal
           visible={serviceModalVisible}
-          initialServices={services}
+          currentServices={DocServices}
+          savesuccess={saveSuccess}          
           onClose={() => setServiceModalVisible(false)}
           onSave={(selectedServices) => {
-            setServices(selectedServices);
+            saveServices(selectedServices);
             setServiceModalVisible(false);
           }}
         />

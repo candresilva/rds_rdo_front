@@ -23,13 +23,8 @@ type Equipment = {
   quantidade?:number;
 };
 
-type FormData = {
-  rdosId: string;
-  maoDeObraId: string;
-  quantidade?: number;
-};
-
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 
 const EquipmentModal: React.FC<EquipmentModalProps> = ({
   visible,
@@ -42,9 +37,6 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
   const [selectedEquipments, setSelectedEquipments] = useState<
   Equipment[]
   >([]);
-  const [initialEquipments, setInitialEquipments] = useState<
-  Equipment[]
-  >([]);
 
   const [tempSelectedEquipmentId, setTempSelectedEquipmentId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
@@ -55,6 +47,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
       if (visible) {
       setSelectedEquipments(currentEquipments);
     }}, [visible]);
+
     useEffect(() => {
       if (visible) {
       fetchEquipments();
@@ -132,7 +125,7 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
                 disabled={tempSelectedEquipmentId===null}
                 style={globalStyles.editButton}               
                 onPress={() => {
-                  const pickedEquipment = filteredEquipments.find(w => w.id === tempSelectedEquipmentId);
+                  const pickedEquipment = filteredEquipments.find(e => e.id === tempSelectedEquipmentId);
                   if (pickedEquipment) {
                     addEquipment(pickedEquipment);
                     setTempSelectedEquipmentId(null)
@@ -149,13 +142,15 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({
             <View key={equipment.nome} style={globalStyles.selectedItem}>
               <Text>{equipment.nome}</Text>
               {/* Input para atualizar quantidade */}
-              <TextInput
-                style={globalStyles.input}
-                keyboardType="numeric"
-                value={equipment.quantidade?.toString()}
-                onChangeText={(text) => updatequantidade(equipment.id, parseInt(text) || 0)}
-              />
-
+              <View>
+                <Text>Quantidade:</Text>
+                <TextInput
+                  style={globalStyles.input}
+                  keyboardType="numeric"
+                  value={equipment.quantidade?.toString()}
+                  onChangeText={(text) => updatequantidade(equipment.id, parseInt(text) || 0)}
+                />
+              </View>
               <TouchableOpacity onPress={() => removeEquipment(equipment.id)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>

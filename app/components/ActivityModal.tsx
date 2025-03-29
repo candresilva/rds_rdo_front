@@ -6,70 +6,99 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ScrollView,
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
 
+type Activity = {
+      atividadeId:string,
+      nome: string,
+      dataHoraInicio?: string,
+      dataHoraFim?: string
+    }
+
+const API_URL = "https://rdsrdo-production.up.railway.app";
+
 interface ActivityModalProps {
   visible: boolean;
-  initialActivities: {name: string; startTime?: string, endTime?: string}[]
+  currentActivities: Activity[];
   onClose: () => void;
-  onSave: (selectedActivities: {name: string; startTime?: string, endTime?: string}[])=> void;
+  onSave: (selectedActivities: {atividadeId: string; nome: string; dataHoraInicio?: string, dataHoraFim?: string}[])=> void;
 }
-
-const allActivities = ["Teste do VANT", "Obtenção de fotos da região",
-    "Atividade 3", "Atividade 4",
-    "Higienização da caixa d'água",
-    "Atividade 6", "Atividade 7", "Atividade 8",
-    "Atividade 9"];
 
 const ActivityModal: React.FC<ActivityModalProps> = ({
   visible,
-  initialActivities,
+  currentActivities,
   onClose,
   onSave,
 }) => {
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedActivities, setSelectedActivities] = useState<
-        { name: string; startTime?: string, endTime?: string }[]
-    >([]);
+    const [activities, setActivities] = useState<Activity[]>([]);
+    const [tempSelectedActivityId, setTempSelectedActivityId] = useState<string | null>(null); // Serviço selecionado temporariamente
+    const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+    const [selectedActivities, setSelectedActivities] = useState<Activity[]>([]);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
     useEffect(() => {
         if (visible) {
-        setSelectedActivities(initialActivities);
+        setSelectedActivities(currentActivities);
+        console.log("slat",selectedActivities)
         }
-    }, [visible, initialActivities]);
-    
-    const [tempSelectedActivity, setTempSelectedActivity] = useState<string>(''); // Serviço selecionado temporariamente
-    const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
+    }, [visible]);
 
+    useEffect(() => {
+        if (visible) {
+        fetchActivities();
+    }}, [visible]);
+      
     // Filtrar atividades pelo termo de busca
-    const filteredActivities = allActivities.filter((activity) =>
-        activity.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredActivities = activities.filter((activity) =>
+        activity.nome.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const fetchActivities = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/v1/listar/atividades`);
+          const data = await response.json();
+           const dados = data.map((d: { id: any; nome: any; })=> ({
+            id: d.id,
+            nome: d.nome
+          }));
+          console.log("Dados",dados)
+          setActivities(dados);
+        } catch (error) {
+          console.error("Erro ao buscar atividade:", error);
+        }
+      };
+    
     // Adicionar atividade à lista selecionada
-    const addActivity = (activity: string) => {
-        if (!selectedActivities.some((a) => a.name === activity)) {
+    const addActivity = (activity: Activity) => {
+        if (!selectedActivities.some((a) => a.atividadeId === activity.atividadeId)) {
         setSelectedActivities([
             ...selectedActivities,
-            { name: activity },
+            { ...activity },
         ]);
-        setTempSelectedActivity("")
         }
+        console.log("as", selectedActivities)
+        console.log("pia", activity)
     };
 
     // Remover atividade da lista selecionada
-    const removeActivity = (activity: string) => {
+    const removeActivity = (activityId: string) => {
         setSelectedActivities(
-        selectedActivities.filter((item) => item.name !== activity)
+        selectedActivities.filter((item) => item.atividadeId !== activityId)
         );
     };
 
     return (
         <Modal visible={visible} animationType="slide" transparent >
             <View style={globalStyles.modalContainer}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}>
                 <View style={globalStyles.modalContent}>
-                    {initialActivities.length ==0 ? 
+                    {currentActivities.length ==0 ? 
                     (<Text style={globalStyles.modalTitle}>Inserir Atividade</Text>) :
                     (<Text style={globalStyles.modalTitle}>Editar Atividade</Text>)}
 
@@ -77,10 +106,10 @@ const ActivityModal: React.FC<ActivityModalProps> = ({
                         <View style={{flexDirection:"column"}}>
                             <DropDownPicker
                             open={open}
-                            value={tempSelectedActivity}
-                            items={filteredActivities.map(activity => ({ label: activity, value: activity }))}
+                            value={tempSelectedActivityId}
+                            items={filteredActivities.map(activity => ({ label: activity.nome, value: activity.atividadeId }))}
                             setOpen={setOpen}
-                            setValue={setTempSelectedActivity}
+                            setValue={setTempSelectedActivityId}
                             placeholder="Selecione uma atividade"
                             searchable={true}
                             searchPlaceholder="Pesquisar..."
@@ -91,13 +120,16 @@ const ActivityModal: React.FC<ActivityModalProps> = ({
                             scrollViewProps={{
                                 nestedScrollEnabled: true,  // Permite rolagem dentro do DropDownPicker
                             }}
+                            listMode="MODAL"
                         />
                         <TouchableOpacity 
-                            disabled={tempSelectedActivity===null}
+                            disabled={tempSelectedActivityId===null}
                             style={globalStyles.editButton}               
                             onPress={() => {
-                                if (tempSelectedActivity) {
-                                addActivity(tempSelectedActivity); // Adiciona o serviço selecionado à lista final
+                                const pickedActivity = filteredActivities.find(a => a.atividadeId === tempSelectedActivityId);
+                                if (pickedActivity) {
+                                  addActivity(pickedActivity);
+                                  setTempSelectedActivityId(null)
                                 }
                             }}
                             >
@@ -107,10 +139,10 @@ const ActivityModal: React.FC<ActivityModalProps> = ({
 
                     {/* Atividade Selecionada */}
                     <Text style={globalStyles.sectionTitle}>Selecionados:</Text>
-                        {selectedActivities.map(({name, startTime, endTime}) => (
-                        <View key={name} style={globalStyles.selectedItem}>
-                        <Text>{name}</Text>
-                        <TouchableOpacity onPress={() => removeActivity(name)}>
+                        {selectedActivities.map((a) => (
+                        <View key={a.nome} style={globalStyles.selectedItem}>
+                        <Text>{a.nome}</Text>
+                        <TouchableOpacity onPress={() => removeActivity(a.atividadeId)}>
                             <Text style={globalStyles.removeText}>❌</Text>
                         </TouchableOpacity>
                         </View>
@@ -128,14 +160,14 @@ const ActivityModal: React.FC<ActivityModalProps> = ({
                         style={globalStyles.buttonCancel}
                         onPress={() => {
                             onClose(); // Chama o onClose
-                            setTempSelectedActivity(""); // Limpa o valor de tempSelectedService
+                            setTempSelectedActivityId(null); // Limpa o valor de tempSelectedService
                           }}
-                          
                         >
                         <Text style={globalStyles.buttonText}>Cancelar</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
+            </ScrollView>
             </View>
         </Modal>
     );

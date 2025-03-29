@@ -8,13 +8,14 @@ import {
 } from "react-native";
 import { globalStyles } from "../styles/globalStyles";
 import DropDownPicker from "react-native-dropdown-picker";
+import { ScrollView } from "react-native-gesture-handler";
 
 interface BreakModalProps {
   visible: boolean;
   currentBreaks: Break[];
   savesuccess:boolean;
   onClose: () => void;
-  onSave: (selectedBreaks: { id: string; nome: string; quantidade?: number }[])=> void;
+  onSave: (selectedBreaks: Break[])=> void;
 }
 
 type Break = {
@@ -24,13 +25,8 @@ type Break = {
   dataHoraFim?:string;
 };
 
-type FormData = {
-  rdosId: string;
-  maoDeObraId: string;
-  quantidade?: number;
-};
-
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 
 const BreakModal: React.FC<BreakModalProps> = ({
   visible,
@@ -43,18 +39,12 @@ const BreakModal: React.FC<BreakModalProps> = ({
   const [selectedBreaks, setSelectedBreaks] = useState<
   Break[]
   >([]);
-  const [initialBreaks, setInitialBreaks] = useState<
-  Break[]
-  >([]);
 
   const [tempSelectedBreakId, setTempSelectedBreakId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);  // Controla o dropdown aberto/fechado
   const [breaks, setBreaks] = useState<Break[]>([]);
   const [tempStartTimes, setTempStartTimes] = useState<{ [key: string]: string }>({});
   const [tempEndTimes, setTempEndTimes] = useState<{ [key: string]: string }>({});
-
-  const [tempStartTime, setTempStartTime] = useState<string>("");
-  const [tempEndTime, setTempEndTime] = useState<string>("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   
 
@@ -62,11 +52,11 @@ const BreakModal: React.FC<BreakModalProps> = ({
       if (visible) {
       setSelectedBreaks(currentBreaks);
     }}, [visible]);
+
     useEffect(() => {
       if (visible) {
       fetchBreaks();
     }}, [visible]);
-  
 
   // Filtrar pausas pelo termo de busca
   const filteredBreaks = breaks.filter((abreak) =>
@@ -162,25 +152,31 @@ const BreakModal: React.FC<BreakModalProps> = ({
             <View key={abreak.nome} style={globalStyles.selectedItem}>
               <Text>{abreak.nome}</Text>
               {/* Input para atualizar hora de início */}
-              <TextInput
-                style={globalStyles.input}
-                keyboardType="default"
-                value={tempStartTimes[abreak.id] ?? abreak.dataHoraInicio?.toString() ?? ""}
-                onChangeText={(text) => setTempStartTimes(prev => ({ ...prev, [abreak.id]: text }))}
-                onBlur={() => {
-                  updateStartTime(abreak.id, tempStartTimes[abreak.id] ?? abreak.dataHoraInicio);
-                }} 
-              />
+              <View>
+                <Text>Início:</Text>
+                <TextInput
+                  style={globalStyles.input}
+                  keyboardType="default"
+                  value={tempStartTimes[abreak.id] ?? abreak.dataHoraInicio?.toString() ?? ""}
+                  onChangeText={(text) => setTempStartTimes(prev => ({ ...prev, [abreak.id]: text }))}
+                  onBlur={() => {
+                    updateStartTime(abreak.id, tempStartTimes[abreak.id] ?? abreak.dataHoraInicio);
+                  }} 
+                />
+              </View>
               {/* Input para atualizar hora de fim */}
-              <TextInput
-                style={globalStyles.input}
-                keyboardType="default"
-                value={tempEndTimes[abreak.id] ?? abreak.dataHoraFim?.toString() ?? ""}
-                onChangeText={(text) => setTempEndTimes(prev => ({ ...prev, [abreak.id]: text }))}
-                onBlur={() => {
-                  updateEndTime(abreak.id, tempEndTimes[abreak.id] ?? abreak.dataHoraFim);
-                }} 
-              />         
+              <View>
+                <Text>Fim:</Text>
+                <TextInput
+                  style={globalStyles.input}
+                  keyboardType="default"
+                  value={tempEndTimes[abreak.id] ?? abreak.dataHoraFim?.toString() ?? ""}
+                  onChangeText={(text) => setTempEndTimes(prev => ({ ...prev, [abreak.id]: text }))}
+                  onBlur={() => {
+                    updateEndTime(abreak.id, tempEndTimes[abreak.id] ?? abreak.dataHoraFim);
+                  }} 
+                />
+              </View>         
               <TouchableOpacity onPress={() => removeBreak(abreak.id)}>
                 <Text style={globalStyles.removeText}>❌</Text>
               </TouchableOpacity>

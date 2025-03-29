@@ -16,7 +16,8 @@ import uuid from 'react-native-uuid';
 
 
 const STORAGE_KEY = "@rdo_rds_list";
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 //const API_URL = "http://10.0.2.2:3000";
 //const API_URL = "http://localhost:3000";
 
@@ -130,7 +131,7 @@ export default function NovaRDOSScreen() {
       const listaSincronizada = [];
 
       for (const documento of listaPendentes) {
-        const response = await fetch("http://192.168.0.29:3000/api/v1/criar/rdos", {
+        const response = await fetch(`${API_URL}/api/v1/criar/rdos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(documento),
@@ -151,49 +152,6 @@ export default function NovaRDOSScreen() {
       }
     } catch (error) {
       console.error("Erro ao sincronizar:", error);
-    }
-  };
-
-  const onFechar = () => {
-    setStatus("Encerrado");
-  };
-  
-  const onExcluir = () => {
-    setStatus("Excluído");
-  };
-
-  const onEditar = () => {
-    setSalvo(false);
-  };
-
-  const handleSave = async () => {
-    try {
-      // Monta o objeto com os dados do formulário
-      //const dadosParaSalvar = {
-        //numeroRDO: FormData.numeroRDO,
-        //dataCriacao: selectedDate,
-        //status: "Aberto",
-        // Adicione mais campos conforme necessário
-      //};
-  
-      // Enviar os dados para o banco (substitua pela sua API real)
-      //const response = await fetch("URL_DA_API/salvar", {
-        //method: "POST",
-        //headers: {
-          //"Content-Type": "application/json",
-        //},
-        //body: JSON.stringify(dadosParaSalvar),
-      //});
-  
-      //if (!response.ok) throw new Error("Erro ao salvar no banco");
-  
-      // Se deu certo, atualizar o estado para indicar que foi salvo
-      //setSalvo(true);
-      //alert("Salvo com sucesso!");
-  
-    } catch (error) {
-      console.error("Erro ao salvar:", error);
-      alert("Erro ao salvar os dados");
     }
   };
 
@@ -395,7 +353,6 @@ export default function NovaRDOSScreen() {
           <Text>RDS</Text>
         </View>
 
-
       {/* Criar */} 
       {status === "" && (<TouchableOpacity style={[globalStyles.button, { opacity: salvo ? 0.5 : 1 }]} 
         onPress={() => {
@@ -405,37 +362,9 @@ export default function NovaRDOSScreen() {
         <Text style={globalStyles.buttonText}>Criar</Text> 
       </TouchableOpacity>)}     
 
+      {/* Seções abaixo não serão implementadas no momento */} 
       {/* Fechar Editar Excluir */} 
-      {salvo && (
-      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "green" }]}
-          onPress={onFechar}
-        >
-          <Text style={globalStyles.buttonText}>Fechar</Text>
-        </TouchableOpacity>
-              <TouchableOpacity style={[globalStyles.button, { backgroundColor: "orange" }]} onPress={onEditar}>
-                <Text style={globalStyles.buttonText}>Editar</Text>
-              </TouchableOpacity>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "red" }]}
-          onPress={onExcluir}
-        >
-          <Text style={globalStyles.buttonText}>Excluir</Text>
-        </TouchableOpacity>
-      </View>
-      )}
-
       {/* Salvar (após Editar) */} 
-      {status ==="Aberto" && !salvo && (
-      <View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 10 }}>
-        <TouchableOpacity
-          style={[globalStyles.button, { backgroundColor: "green" }]}
-          onPress={handleSave}
-        >
-          <Text style={globalStyles.buttonText}>Salvar</Text>
-        </TouchableOpacity>
-      </View>)}
 
     </View>
     </ScrollView>

@@ -7,7 +7,8 @@ import { RootStackParamList } from "../navigation/AppNavigator"; // ajuste o cam
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 
 type Doc = {
   id: string;
@@ -53,7 +54,6 @@ const ListagemRDOs = () => {
     fetch(`${API_URL}/api/v1/listar/resumo-rdos`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("rdos recebidos:", data);
         setRdos(Array.isArray(data) ? data : []);
         setLoading(false);
       });
@@ -61,14 +61,12 @@ const ListagemRDOs = () => {
     fetch(`${API_URL}/api/v1/listar/resumo-contratos`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("Contratos recebidos:", data); // <-- Adicione este log
         setContratos(Array.isArray(data) ? data : []);
       });
   
     fetch(`${API_URL}/api/v1/listar/resumo-encarregados`)
       .then((res) => res.json())
       .then((data) => {
-        console.log("Encarregados recebidos:", data); // <-- Adicione este log
         setEncarregados(Array.isArray(data) ? data : []);
       });
   }, []);
@@ -82,12 +80,11 @@ const ListagemRDOs = () => {
       const listaSalva = await AsyncStorage.getItem("@rdo_rds_pendentes");
       console.log("pend",listaSalva)
       if (!listaSalva) return;
-
       const listaPendentes = JSON.parse(listaSalva);
       const listaSincronizada = [];
 
       for (const documento of listaPendentes) {
-        const response = await fetch("http://192.168.0.29:3000/api/v1/criar/rdos", {
+        const response = await fetch(`${API_URL}/api/v1/criar/rdos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(documento),
@@ -119,7 +116,7 @@ const ListagemRDOs = () => {
     (!filtroEncarregado || 
       rdo.encarregado?.nome.toLowerCase().includes(filtroEncarregado.toLowerCase())
     )
-  );
+  ).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
   const filteredEncarregados = encarregados.filter((encarregado) =>
     encarregado.nome.toLowerCase().includes(searchTerm.toLowerCase())
@@ -196,7 +193,7 @@ const ListagemRDOs = () => {
               renderItem={({ item }) => (
               <View style={globalStyles.serviceContainer}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={globalStyles.serviceText}>Número: {item.numero}</Text>
+                  <Text style={globalStyles.serviceText}>{item.tipo} Número: {item.numero}</Text>
                   <TouchableOpacity onPress={() => navigation.navigate("DetalhesRDO", { id: item.id })}>
                      <Text style={{ fontSize: 18, color: "#007bff" }}>✎</Text>
                   </TouchableOpacity>

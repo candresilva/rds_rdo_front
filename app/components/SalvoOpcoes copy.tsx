@@ -7,7 +7,8 @@ import EquipmentModal from "./EquipmentForm";
 import BreakModal from "./BreaksForm";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://192.168.0.29:3000";
+const API_URL = "https://rdsrdo-production.up.railway.app";
+//const API_URL = "http://192.168.0.29:3000";
 
 type Workforce_Equipment = {
   id: string;
